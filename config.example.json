@@ -1,0 +1,29 @@
+{
+	"aggressive": false,
+	"defaultRetention": {
+		"keepCount": 5
+	},
+	"targets": [
+		{
+			"kind": "any",
+			"name": "Local harness logs",
+			"paths": ["./test-harness/logs"],
+			"retention": {
+				"keepCount": 2
+			},
+			"risk": "aggressive",
+			"tool": "test-harness"
+		}
+	],
+	"usePresets": [
+		"claude-code",
+		"codex",
+		"kilocode",
+		"opencode",
+		"kiro",
+		"cursor",
+		"cline",
+		"windsurf",
+		"antigravity"
+	]
+}
