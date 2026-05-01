@@ -8,6 +8,7 @@ type RiskLevel = 'normal' | 'aggressive';
 interface RetentionPolicy {
 	keepCount?: number;
 	keepDays?: number;
+	allowEmpty?: boolean;
 }
 
 interface CleanupTarget {
@@ -45,6 +46,70 @@ const SENSITIVE_NAME_PATTERNS = [
 	/(^|[\\/])(settings|config|rules|prompts?|instructions?|credentials?|secrets?|keys?|mcp)(\.[\w-]+)?$/i,
 	/(^|[\\/]).*(credential|secret|token|apikey|api-key|private-key|id_rsa).*$/i,
 ];
+
+const normalizeForCompare = (p: string): string => {
+	const resolved = path.resolve(p);
+	return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+};
+
+const DANGEROUS_ROOTS: Set<string> = (() => {
+	const roots = new Set<string>();
+	const add = (p: string) => roots.add(normalizeForCompare(p));
+	if (process.platform === 'win32') {
+		for (const drive of ['C:\\', 'D:\\', 'E:\\']) {
+			add(drive);
+		}
+		add('C:\\Windows');
+		add('C:\\Windows\\System32');
+		add('C:\\Program Files');
+		add('C:\\Program Files (x86)');
+		add('C:\\Users');
+		add('C:\\ProgramData');
+	} else {
+		for (const root of [
+			'/',
+			'/bin',
+			'/boot',
+			'/dev',
+			'/etc',
+			'/home',
+			'/lib',
+			'/lib64',
+			'/opt',
+			'/proc',
+			'/root',
+			'/sbin',
+			'/srv',
+			'/sys',
+			'/usr',
+			'/usr/bin',
+			'/usr/local',
+			'/usr/sbin',
+			'/var',
+			'/Users',
+		]) {
+			add(root);
+		}
+	}
+	add(os.homedir());
+	return roots;
+})();
+
+const isDangerousRoot = (candidatePath: string): boolean =>
+	DANGEROUS_ROOTS.has(normalizeForCompare(candidatePath));
+
+const HELP_TEXT = `AI Cleaner - routine harness/session cleanup with retention policies.
+
+Usage:
+  bun index.ts [options]
+
+Options:
+  --config <path>   Path to config JSON (default: config.json)
+  --dry-run         Print actions without deleting
+  --aggressive      Process targets marked risk: aggressive
+  --help, -h        Show this help
+
+See config.example.json for configuration format.`;
 
 const PRESETS: Record<string, CleanupTarget[]> = {
 	'claude-code': [
@@ -177,16 +242,28 @@ const PRESETS: Record<string, CleanupTarget[]> = {
 
 const parseArgs = () => {
 	const args = process.argv.slice(2);
-	const options = { aggressive: false, configPath: 'config.json', dryRun: false };
+	const options = {
+		aggressive: false,
+		configPath: 'config.json',
+		dryRun: false,
+		help: false,
+	};
 
 	for (let i = 0; i < args.length; i++) {
-		if (args[i] === '--dry-run') {
+		const arg = args[i];
+		if (arg === '--dry-run') {
 			options.dryRun = true;
-		} else if (args[i] === '--aggressive') {
+		} else if (arg === '--aggressive') {
 			options.aggressive = true;
-		} else if (args[i] === '--config' && i + 1 < args.length) {
+		} else if (arg === '--config' && i + 1 < args.length) {
 			options.configPath = args[i + 1];
 			i++;
+		} else if (arg === '--help' || arg === '-h') {
+			options.help = true;
+		} else {
+			console.error(`Unknown argument: ${arg}`);
+			console.error(HELP_TEXT);
+			process.exit(2);
 		}
 	}
 
@@ -199,7 +276,19 @@ const loadConfig = (configPath: string): Config => {
 		console.error(`Config file not found: ${fullPath}`);
 		process.exit(1);
 	}
-	return JSON.parse(fs.readFileSync(fullPath, 'utf8')) as Config;
+	let raw: string;
+	try {
+		raw = fs.readFileSync(fullPath, 'utf8');
+	} catch (error) {
+		console.error(`Failed to read config ${fullPath}: ${(error as Error).message}`);
+		process.exit(1);
+	}
+	try {
+		return JSON.parse(raw) as Config;
+	} catch (error) {
+		console.error(`Invalid JSON in ${fullPath}: ${(error as Error).message}`);
+		process.exit(1);
+	}
 };
 
 const validateRetentionPolicy = (policy: RetentionPolicy, label: string) => {
@@ -214,6 +303,11 @@ const validateRetentionPolicy = (policy: RetentionPolicy, label: string) => {
 		(!Number.isInteger(policy.keepCount) || policy.keepCount < 0)
 	) {
 		throw new Error(`${label}.keepCount must be a non-negative integer.`);
+	}
+	if (policy.keepCount === 0 && policy.allowEmpty !== true) {
+		throw new Error(
+			`${label}.keepCount is 0 (would delete all matching artifacts). Set allowEmpty: true on the policy to confirm.`
+		);
 	}
 	if (
 		policy.keepDays !== undefined &&
@@ -272,7 +366,14 @@ const listArtifacts = (rootPath: string, kind: ArtifactKind): Artifact[] => {
 		return [];
 	}
 
-	const rootStats = fs.statSync(rootPath);
+	let rootStats: fs.Stats;
+	try {
+		rootStats = fs.statSync(rootPath);
+	} catch (error) {
+		console.warn(`Cannot stat ${rootPath}: ${(error as Error).message}`);
+		return [];
+	}
+
 	if (!rootStats.isDirectory()) {
 		const artifact = {
 			path: rootPath,
@@ -283,20 +384,34 @@ const listArtifacts = (rootPath: string, kind: ArtifactKind): Artifact[] => {
 		return matchesKind(artifact, kind) ? [artifact] : [];
 	}
 
-	return fs
-		.readdirSync(rootPath, { withFileTypes: true })
-		.map((dirent) => {
-			const artifactPath = path.join(rootPath, dirent.name);
+	let entries: fs.Dirent[];
+	try {
+		entries = fs.readdirSync(rootPath, { withFileTypes: true });
+	} catch (error) {
+		console.warn(`Cannot read ${rootPath}: ${(error as Error).message}`);
+		return [];
+	}
+
+	const artifacts: Artifact[] = [];
+	for (const dirent of entries) {
+		const artifactPath = path.join(rootPath, dirent.name);
+		try {
 			const stats = fs.statSync(artifactPath);
-			return {
+			const artifact = {
 				path: artifactPath,
 				time: stats.mtimeMs,
 				isDirectory: stats.isDirectory(),
 				isFile: stats.isFile(),
 			};
-		})
-		.filter((artifact) => matchesKind(artifact, kind))
-		.sort((a, b) => b.time - a.time);
+			if (matchesKind(artifact, kind)) {
+				artifacts.push(artifact);
+			}
+		} catch (error) {
+			console.warn(`Cannot stat ${artifactPath}: ${(error as Error).message}`);
+		}
+	}
+
+	return artifacts.sort((a, b) => b.time - a.time);
 };
 
 const selectArtifactsToDelete = (artifacts: Artifact[], policy: RetentionPolicy) => {
@@ -332,6 +447,11 @@ const processTarget = (
 
 	for (const configuredPath of target.paths) {
 		const rootPath = expandPath(configuredPath);
+		if (isDangerousRoot(rootPath)) {
+			console.warn(`Refusing to operate on dangerous root: ${rootPath}`);
+			result.skipped++;
+			continue;
+		}
 		const artifacts = listArtifacts(rootPath, kind);
 		if (artifacts.length === 0) {
 			console.log(`No matching artifacts under: ${rootPath}`);
@@ -350,20 +470,31 @@ const processTarget = (
 				result.skipped++;
 				continue;
 			}
+			if (isDangerousRoot(artifact.path)) {
+				console.warn(`Skipping dangerous path: ${artifact.path}`);
+				result.skipped++;
+				continue;
+			}
 			if (dryRun) {
 				console.log(`[DRY RUN] Would delete: ${artifact.path}`);
+				result.matched++;
 			} else {
-				console.log(`Deleting: ${artifact.path}`);
-				fs.rmSync(artifact.path, { recursive: true, force: true });
+				try {
+					console.log(`Deleting: ${artifact.path}`);
+					fs.rmSync(artifact.path, { recursive: true, force: true });
+					result.matched++;
+				} catch (error) {
+					console.error(`Failed to delete ${artifact.path}: ${(error as Error).message}`);
+					result.skipped++;
+				}
 			}
-			result.matched++;
 		}
 	}
 
 	return result;
 };
 
-const legacyTargetsFromConfig = (config: Config): CleanupTarget[] => {
+const legacyTargetsFromConfig = (config: Config, explicitPaths: Set<string>): CleanupTarget[] => {
 	const targets: CleanupTarget[] = [];
 	for (const targetPath of config.targetPaths || []) {
 		const fullPath = path.resolve(process.cwd(), targetPath);
@@ -371,19 +502,34 @@ const legacyTargetsFromConfig = (config: Config): CleanupTarget[] => {
 			console.warn(`Target path does not exist: ${fullPath}`);
 			continue;
 		}
+		if (isDangerousRoot(fullPath)) {
+			console.warn(`Refusing to enumerate dangerous root: ${fullPath}`);
+			continue;
+		}
 
-		for (const dirent of fs.readdirSync(fullPath, { withFileTypes: true })) {
-			if (dirent.isDirectory()) {
-				targets.push({
-					name: `${dirent.name} legacy artifacts`,
-					tool: dirent.name,
-					paths: [path.join(targetPath, dirent.name)],
-					retention:
-						config.overrides?.[dirent.name] ||
-						config.defaultRetention ||
-						DEFAULT_RETENTION,
-				});
+		let entries: fs.Dirent[];
+		try {
+			entries = fs.readdirSync(fullPath, { withFileTypes: true });
+		} catch (error) {
+			console.warn(`Cannot read ${fullPath}: ${(error as Error).message}`);
+			continue;
+		}
+
+		for (const dirent of entries) {
+			if (!dirent.isDirectory()) continue;
+			const subPath = path.join(targetPath, dirent.name);
+			const expandedSubPath = normalizeForCompare(expandPath(subPath));
+			if (explicitPaths.has(expandedSubPath)) {
+				console.log(`Skipping legacy entry already covered by explicit target: ${subPath}`);
+				continue;
 			}
+			targets.push({
+				name: `${dirent.name} legacy artifacts`,
+				tool: dirent.name,
+				paths: [subPath],
+				retention:
+					config.overrides?.[dirent.name] || config.defaultRetention || DEFAULT_RETENTION,
+			});
 		}
 	}
 	return targets;
@@ -402,6 +548,10 @@ const presetTargetsFromConfig = (config: Config): CleanupTarget[] => {
 
 const main = () => {
 	const options = parseArgs();
+	if (options.help) {
+		console.log(HELP_TEXT);
+		return;
+	}
 	console.log('Starting AI Cleaner...');
 	if (options.dryRun) {
 		console.log('*** DRY RUN MODE ENABLED ***');
@@ -412,11 +562,11 @@ const main = () => {
 
 	const aggressive = options.aggressive || config.aggressive === true;
 	const defaultRetention = config.defaultRetention || DEFAULT_RETENTION;
-	const targets = [
-		...presetTargetsFromConfig(config),
-		...(config.targets || []),
-		...legacyTargetsFromConfig(config),
-	];
+	const explicitTargets = [...presetTargetsFromConfig(config), ...(config.targets || [])];
+	const explicitPaths = new Set(
+		explicitTargets.flatMap((t) => t.paths.map((p) => normalizeForCompare(expandPath(p))))
+	);
+	const targets = [...explicitTargets, ...legacyTargetsFromConfig(config, explicitPaths)];
 	const totals = { matched: 0, skipped: 0 };
 
 	if (aggressive) {
