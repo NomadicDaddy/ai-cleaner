@@ -1,6 +1,6 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 type ArtifactKind = 'directory' | 'file' | 'any';
 type RiskLevel = 'normal' | 'aggressive';
@@ -255,8 +255,14 @@ const parseArgs = () => {
 			options.dryRun = true;
 		} else if (arg === '--aggressive') {
 			options.aggressive = true;
-		} else if (arg === '--config' && i + 1 < args.length) {
-			options.configPath = args[i + 1];
+		} else if (arg === '--config') {
+			const next = args[i + 1];
+			if (next === undefined) {
+				console.error('--config requires a path argument');
+				console.error(HELP_TEXT);
+				process.exit(2);
+			}
+			options.configPath = next;
 			i++;
 		} else if (arg === '--help' || arg === '-h') {
 			options.help = true;

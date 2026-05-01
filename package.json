@@ -2,7 +2,7 @@
 	"name": "aicleaner",
 	"version": "1.0.0",
 	"type": "module",
-	"description": "Routine agent/coding harness cleanup with configurable retention and dry run.",
+	"description": "Routine agent/coding harness cleanup with configurable retention.",
 	"main": "index.ts",
 	"scripts": {
 		"start": "bun index.ts",
@@ -10,6 +10,19 @@
 		"format:check": "bunx prettier --check .",
 		"typecheck": "tsc --noEmit"
 	},
+	"keywords": [
+		"ai",
+		"agent",
+		"coding",
+		"harness",
+		"clean",
+		"cleanup",
+		"logs",
+		"logfiles",
+		"artifacts",
+		"cache",
+		"speed"
+	],
 	"author": "NomadicDaddy",
 	"license": "MIT",
 	"dependencies": {},
