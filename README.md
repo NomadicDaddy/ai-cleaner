@@ -1,124 +1,153 @@
-# aicleaner
+# ai-cleaner
 
-Routine cleanup for AI coding agent / harness artifacts (sessions, logs, caches) with per-tool retention policies, dry-run preview, and safety guards.
+`ai-cleaner` removes old AI coding-agent logs, caches, sessions, and crash artifacts using
+configurable retention policies. It runs on Bun with no runtime dependencies.
 
-Single-file Bun + TypeScript CLI. Zero runtime dependencies.
+Cleanup is a dry run unless `--apply` is present. Targets marked `aggressive` also require
+`--aggressive --confirm-aggressive` before deletion.
 
 ## Install
 
 ```sh
-bun install
+bun install --frozen-lockfile
 ```
+
+Run it from the checkout:
+
+```sh
+bun run start -- --help
+bun run start
+```
+
+The package also exposes an `ai-cleaner` executable when installed or linked as a package.
 
 ## Usage
 
-```sh
-bun index.ts [options]
+```text
+ai-cleaner [options]
+
+--config <path>         Use another JSON configuration file
+--dry-run               Preview deletions (default)
+--apply                 Delete selected artifacts
+--aggressive            Include targets marked aggressive
+--confirm-aggressive    Confirm applied aggressive cleanup
+--help, -h              Show help
 ```
 
-| Option            | Description                                                   |
-| ----------------- | ------------------------------------------------------------- |
-| `--config <path>` | Path to config JSON (default: `config.json`)                  |
-| `--dry-run`       | Print what would be deleted without touching anything         |
-| `--aggressive`    | Process targets marked `risk: aggressive` (otherwise skipped) |
-| `--help`, `-h`    | Show usage                                                    |
+Examples:
 
-Unknown arguments cause exit code 2.
+```sh
+# Preview the bundled configuration
+bun run start
+
+# Preview aggressive targets
+bun run start -- --aggressive
+
+# Apply normal targets
+bun run start -- --apply
+
+# Apply aggressive targets after reviewing the preview
+bun run start -- --apply --aggressive --confirm-aggressive
+
+# Use a configuration relative to the current directory
+bun run start -- --config ./my-cleaner.json
+```
 
 ## Configuration
 
-See [`config.example.json`](./config.example.json). All fields are optional unless noted.
+The bundled [`config.json`](./config.json) is both the default configuration and the copyable
+example. Its presets are ordinary configuration, so you can add, remove, or replace them without
+editing TypeScript.
 
 ```jsonc
 {
-	"aggressive": false, // global aggressive mode (overridden by --aggressive flag)
+	"aggressive": false,
 	"defaultRetention": { "keepCount": 5 },
-	"overrides": {
-		// per-tool retention for legacy targetPaths mode
-		"aider": { "keepCount": 2 },
-	},
 	"presets": {
-		// named preset definitions - referenced by `usePresets`
-		"claude-code": [
+		"my-agent": [
 			{
-				"name": "Claude Code project sessions",
-				"tool": "claude-code",
-				"paths": ["./.claude/sessions"],
-			},
-			{
-				"name": "Claude Code global artifacts",
-				"tool": "claude-code",
-				"paths": ["~/.claude/projects", "~/.claude/sessions" /* ... */],
-				"kind": "any",
+				"name": "Project sessions",
+				"tool": "my-agent",
+				"paths": ["./.my-agent/sessions"],
+				"kind": "directory",
+				"retention": { "keepDays": 14 },
 				"risk": "aggressive",
 			},
 		],
-		// ... see config.example.json for the full set
 	},
-	"targets": [
-		// explicit targets (preferred for one-offs not worth a preset)
-		{
-			"name": "Local harness logs",
-			"tool": "test-harness",
-			"paths": ["./test-harness/logs"],
-			"kind": "any", // "directory" (default) | "file" | "any"
-			"retention": { "keepCount": 2 },
-			"risk": "aggressive", // gated behind --aggressive
-			"enabled": true,
-		},
-	],
-	"targetPaths": ["./test-harness"], // legacy: each subdir becomes its own target
-	"usePresets": ["claude-code", "codex" /* ... */], // optional; omit to run all presets
+	"usePresets": ["my-agent"],
+	"targets": [],
 }
 ```
 
-### Presets
+All fields are optional, but every target must have `name`, `tool`, and at least one non-empty
+path. Unknown fields and invalid values stop the run before any target is processed.
 
-`presets` is a name → target-list map. Presets and `targets` share the same shape (`name`, `tool`, `paths`, `kind`, `retention`, `risk`, `enabled`).
+`usePresets` selects a subset of the configured presets. When omitted, every preset is selected.
+An empty preset records that an agent home was checked but has no proven disposable artifact
+surface. This prevents skill, agent, configuration, database, or authentication data from being
+targeted just to make the coverage list look complete.
 
-`usePresets` is optional:
+### Retention
 
-- **Omitted (default)** — every preset defined in `presets` is active.
-- **Provided** — only the named presets run; the rest are defined-but-inactive. Useful when one config is shared across machines that have different agents installed. Names not found in `presets` are warned about and skipped.
+Each policy defines exactly one retention rule:
 
-The shipped `config.example.json` defines presets for every supported agent — copy it as a starting point, then add or trim entries as needed for your machine.
+- `keepCount: N` keeps the N newest immediate entries.
+- `keepDays: N` removes immediate entries older than N days.
+- `allowEmpty: true` is required with `keepCount: 0`.
 
-### Retention policies
+Targets do not recurse to discover retention units. Point each target at a directory whose
+immediate children are independent disposable artifacts. Recursive deletion happens only after an
+entry is selected and its full subtree passes the safety checks.
 
-Exactly one of `keepCount` or `keepDays` per policy:
+Paths support `~`, `~/...`, `%VAR%`, and `$VAR`. Missing environment variables are configuration
+errors.
 
-- `keepCount: N` — keep the N most recently modified entries, delete the rest.
-- `keepDays: N` — delete entries older than N days.
-- `allowEmpty: true` — required to use `keepCount: 0` (which deletes everything matching).
+## Agent coverage
 
-Path tokens: `~`, `~/...`, `%VAR%`, and `$VAR` are expanded.
+Coverage was checked against `D:\applications\ai\Fix-SkillSymlinks.ps1`. That script distributes
+skills and agents into some tool homes; those linked resources are protected and are never cleanup
+targets.
 
-### Path resolution order
-
-For each run, targets are processed in this order:
-
-1. Presets named in `usePresets`
-2. Entries in `targets`
-3. Subdirectories enumerated from `targetPaths` (legacy mode)
-
-Legacy entries that resolve to a path already covered by an explicit preset/target are skipped (logged).
+| Agent or home      | Cleanup coverage                                                               |
+| ------------------ | ------------------------------------------------------------------------------ |
+| Claude Code        | Project sessions plus global cache, debug, logs, reports, snapshots, telemetry |
+| Kilo               | Runtime logs and cache; `.config/kilo` skills and agents are preserved         |
+| OpenCode           | Runtime logs and cache; `.config/opencode` skills and agents are preserved     |
+| Codeium / Windsurf | Covered with no active target because no safe disposable leaf was proven       |
+| Generic `.agents`  | Distribution-only home; no cleanup target                                      |
+| Codex              | Cache, logs, and temporary directories; sessions and memories are preserved    |
+| Gemini             | Distribution-only on the inspected machine; no cleanup target                  |
+| Grok               | Logs and memory traces                                                         |
+| Kiro               | Distribution-only on the inspected machine; no cleanup target                  |
+| Antigravity        | Nested Gemini skill home only; no cleanup target                               |
+| Cursor             | Project history plus Cursor logs and cached application data                   |
+| Copilot            | Distribution-only on the inspected machine; no cleanup target                  |
+| Zcode              | CLI logs, v2 logs, and archived crashes                                        |
+| Cline              | Additional cleaner-only coverage for project tasks and session directories     |
 
 ## Safety
 
-- **Dry-run first.** Use `--dry-run` to preview before any real run.
-- **Sensitive name filter.** Files/directories matching credential, secret, key, `.env`, `.git`, `.ssh`, `settings`, `config`, `mcp`, `prompts`, `instructions`, etc. are never deleted, even if selected by retention policy.
-- **Dangerous root deny-list.** The cleaner refuses to operate on system roots (`/`, `/etc`, `C:\Windows`, `C:\Users`, `os.homedir()`, etc.) regardless of config.
-- **Aggressive gate.** Targets with `risk: "aggressive"` (mostly the global `~/.<tool>/...` preset entries) are skipped unless `--aggressive` is passed.
-- **`keepCount: 0` requires opt-in.** Catches typos that would otherwise wipe a target.
+- Filesystem, drive, and share roots are rejected dynamically.
+- Cleanup roots cannot traverse symbolic links, junctions, or other reparse points.
+- Duplicate and ancestor/descendant target roots are rejected before processing.
+- Root identity and artifact containment are checked again immediately before deletion.
+- A selected directory is skipped if any descendant is a link or has a sensitive name such as
+  `.env`, `.git`, `.ssh`, `credentials`, `settings`, `skills`, `agents`, `plugins`, or `memories`.
+- Safety refusals and deletion failures produce a nonzero exit code.
 
-## Scripts
+## Development
 
-| Script                 | What it runs         |
-| ---------------------- | -------------------- |
-| `bun start`            | `bun index.ts`       |
-| `bun run typecheck`    | `tsc --noEmit`       |
-| `bun run format`       | `prettier --write .` |
-| `bun run format:check` | `prettier --check .` |
+```sh
+bun run format
+bun run typecheck
+bun test
+bun run build
+bun run smoke:qc
+```
+
+`smoke:qc` checks formatting and types, runs the isolated filesystem suite, and builds the Bun
+bundle.
 
 ## License
 

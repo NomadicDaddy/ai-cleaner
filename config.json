@@ -4,121 +4,66 @@
 		"keepCount": 5
 	},
 	"presets": {
-		"antigravity": [
-			{
-				"name": "Antigravity project sessions",
-				"paths": ["./.antigravity/sessions"],
-				"tool": "antigravity"
-			},
-			{
-				"kind": "any",
-				"name": "Antigravity global sessions, cache, and logs",
-				"paths": ["~/.antigravity/sessions", "~/.antigravity/cache", "~/.antigravity/logs"],
-				"risk": "aggressive",
-				"tool": "antigravity"
-			}
-		],
+		"agents": [],
+		"antigravity": [],
 		"claude-code": [
 			{
+				"kind": "any",
 				"name": "Claude Code project sessions",
 				"paths": ["./.claude/sessions"],
 				"tool": "claude-code"
 			},
 			{
 				"kind": "any",
-				"name": "Claude Code global artifacts",
+				"name": "Claude Code disposable global artifacts",
 				"paths": [
-					"~/.claude/projects",
-					"~/.claude/logs",
-					"~/.claude/sessions",
-					"~/.claude/todos",
-					"~/.claude/tasks",
-					"~/.claude/shell-snapshots",
-					"~/.claude/file-history",
-					"~/.claude/paste-cache",
-					"~/.claude/session-env",
-					"~/.claude/session-reports",
 					"~/.claude/cache",
 					"~/.claude/debug",
-					"~/.claude/telemetry",
-					"~/.claude/statsig",
-					"~/.claude/backups"
+					"~/.claude/logs",
+					"~/.claude/session-reports",
+					"~/.claude/shell-snapshots",
+					"~/.claude/telemetry"
 				],
+				"retention": {
+					"keepDays": 14
+				},
 				"risk": "aggressive",
 				"tool": "claude-code"
 			}
 		],
 		"cline": [
 			{
+				"kind": "directory",
 				"name": "Cline project task history",
 				"paths": ["./.cline/tasks"],
 				"tool": "cline"
 			},
 			{
-				"kind": "any",
-				"name": "Cline global sessions, logs, workspaces, and worktrees",
-				"paths": [
-					"~/.cline/data/sessions",
-					"~/.cline/data/logs",
-					"~/.cline/data/workspaces",
-					"~/.cline/worktrees",
-					"~/.cline/kanban/workspaces"
-				],
+				"kind": "directory",
+				"name": "Cline session directories",
+				"paths": ["~/.cline/data/sessions"],
 				"risk": "aggressive",
 				"tool": "cline"
 			}
 		],
-		"codeium": [
-			{
-				"kind": "any",
-				"name": "Codeium / Windsurf-Next Cascade artifacts",
-				"paths": [
-					"~/.codeium/windsurf-next/cascade",
-					"~/.codeium/windsurf-next/code_tracker",
-					"~/.codeium/windsurf-next/codemaps",
-					"~/.codeium/windsurf-next/context_state",
-					"~/.codeium/windsurf-next/implicit",
-					"~/.codeium/windsurf-next/database",
-					"~/.codeium/windsurf-next/brain",
-					"~/.codeium/windsurf-next/windsurf"
-				],
-				"risk": "aggressive",
-				"tool": "codeium"
-			},
-			{
-				"kind": "any",
-				"name": "Codeium / Windsurf Cascade artifacts",
-				"paths": [
-					"~/.codeium/windsurf/cascade",
-					"~/.codeium/windsurf/code_tracker",
-					"~/.codeium/windsurf/codemaps",
-					"~/.codeium/windsurf/context_state",
-					"~/.codeium/windsurf/implicit",
-					"~/.codeium/windsurf/database",
-					"~/.codeium/windsurf/brain",
-					"~/.codeium/windsurf/windsurf"
-				],
-				"risk": "aggressive",
-				"tool": "codeium"
-			}
-		],
+		"codeium-windsurf": [],
 		"codex": [
 			{
-				"name": "Codex project sessions",
-				"paths": ["./.codex/sessions"],
-				"tool": "codex"
-			},
-			{
 				"kind": "any",
-				"name": "Codex global sessions, cache, log, and tmp",
-				"paths": ["~/.codex/sessions", "~/.codex/cache", "~/.codex/log", "~/.codex/tmp"],
+				"name": "Codex disposable global artifacts",
+				"paths": ["~/.codex/cache", "~/.codex/log", "~/.codex/tmp", "~/.codex/.tmp"],
+				"retention": {
+					"keepDays": 14
+				},
 				"risk": "aggressive",
 				"tool": "codex"
 			}
 		],
+		"copilot": [],
 		"cursor": [
 			{
-				"name": "Cursor agent history",
+				"kind": "any",
+				"name": "Cursor project history",
 				"paths": ["./.cursor/history", "./.cursor/sessions"],
 				"tool": "cursor"
 			},
@@ -130,75 +75,55 @@
 				"tool": "cursor"
 			}
 		],
-		"gemini": [
+		"gemini": [],
+		"grok": [
 			{
 				"kind": "any",
-				"name": "Gemini global sessions, cache, and logs",
-				"paths": ["~/.gemini/sessions", "~/.gemini/cache", "~/.gemini/logs"],
+				"name": "Grok logs and memory traces",
+				"paths": ["~/.grok/logs", "~/.grok/memtrace"],
+				"retention": {
+					"keepDays": 14
+				},
 				"risk": "aggressive",
-				"tool": "gemini"
+				"tool": "grok"
 			}
 		],
-		"kilocode": [
-			{
-				"name": "Kilocode project task history",
-				"paths": ["./.kilocode/tasks"],
-				"tool": "kilocode"
-			},
+		"kilo": [
 			{
 				"kind": "any",
-				"name": "Kilocode CLI logs, workspaces, and global state",
-				"paths": [
-					"~/.kilocode/cli/logs",
-					"~/.kilocode/cli/workspaces",
-					"~/.kilocode/cli/global/cache",
-					"~/.kilocode/cli/global/tasks",
-					"~/.kilocode/cli/global/puppeteer"
-				],
+				"name": "Kilo logs and cache",
+				"paths": ["~/.local/share/kilo/log", "~/.cache/kilo"],
+				"retention": {
+					"keepDays": 14
+				},
 				"risk": "aggressive",
-				"tool": "kilocode"
+				"tool": "kilo"
 			}
 		],
-		"kiro": [
-			{
-				"name": "Kiro project run artifacts",
-				"paths": ["./.kiro/runs", "./.kiro/history"],
-				"tool": "kiro"
-			},
-			{
-				"kind": "any",
-				"name": "Kiro global runs, cache, and logs",
-				"paths": ["~/.kiro/runs", "~/.kiro/cache", "~/.kiro/logs"],
-				"risk": "aggressive",
-				"tool": "kiro"
-			}
-		],
+		"kiro": [],
 		"opencode": [
 			{
-				"name": "OpenCode project sessions",
-				"paths": ["./.opencode/sessions"],
-				"tool": "opencode"
-			},
-			{
 				"kind": "any",
-				"name": "OpenCode global sessions, cache, and logs",
-				"paths": ["~/.opencode/sessions", "~/.opencode/cache", "~/.opencode/logs"],
+				"name": "OpenCode logs and cache",
+				"paths": ["~/.local/share/opencode/log", "~/.cache/opencode"],
+				"retention": {
+					"keepDays": 14
+				},
 				"risk": "aggressive",
 				"tool": "opencode"
 			}
 		],
-		"windsurf": [
-			{
-				"name": "Windsurf project sessions",
-				"paths": ["./.windsurf/sessions"],
-				"tool": "windsurf"
-			},
+		"windsurf": [],
+		"zcode": [
 			{
 				"kind": "any",
-				"name": "Windsurf global plans and worktrees",
-				"paths": ["~/.windsurf/plans", "~/.windsurf/worktrees"],
+				"name": "Zcode logs and archived crashes",
+				"paths": ["~/.zcode/cli/log", "~/.zcode/v2/logs", "~/.zcode/v2/crash/archive"],
+				"retention": {
+					"keepDays": 14
+				},
 				"risk": "aggressive",
-				"tool": "windsurf"
+				"tool": "zcode"
 			}
 		]
 	},

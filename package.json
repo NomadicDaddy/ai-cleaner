@@ -1,5 +1,5 @@
 {
-	"name": "aicleaner",
+	"name": "ai-cleaner",
 	"version": "1.0.0",
 	"packageManager": "bun@1.3.14",
 	"engines": {
@@ -8,13 +8,25 @@
 	},
 	"type": "module",
 	"description": "Routine agent/coding harness cleanup with configurable retention.",
-	"main": "index.ts",
+	"bin": {
+		"ai-cleaner": "./index.ts"
+	},
+	"files": [
+		"CHANGELOG.md",
+		"README.md",
+		"config.json",
+		"index.ts"
+	],
 	"scripts": {
 		"start": "bun index.ts",
+		"build": "bun run build:bundle && bun run build:verify",
+		"build:bundle": "bun build ./index.ts --target=bun --outfile ./dist/ai-cleaner.js",
+		"build:verify": "bun ./dist/ai-cleaner.js --help && bun ./dist/ai-cleaner.js",
 		"format": "bunx prettier --write .",
 		"format:check": "bunx prettier --check .",
-		"typecheck": "tsc --noEmit",
-		"preinstall": "only-allow bun"
+		"smoke:qc": "bun run format:check && bun run typecheck && bun test && bun run build",
+		"test": "bun test",
+		"typecheck": "tsc --noEmit"
 	},
 	"keywords": [
 		"ai",
@@ -33,12 +45,12 @@
 	"license": "MIT",
 	"dependencies": {},
 	"devDependencies": {
-		"@types/node": "^25.6.0",
-		"only-allow": "^1.2.2",
+		"@types/bun": "1.3.14",
+		"@types/node": "24.13.3",
 		"prettier": "3.8.3",
 		"prettier-plugin-organize-attributes": "1.0.0",
 		"prettier-plugin-sort-json": "4.2.0",
 		"prettier-plugin-tailwindcss": "0.8.0",
-		"typescript": "^6.0.3"
+		"typescript": "6.0.3"
 	}
 }
