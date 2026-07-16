@@ -37,8 +37,26 @@ See [`config.example.json`](./config.example.json). All fields are optional unle
 		// per-tool retention for legacy targetPaths mode
 		"aider": { "keepCount": 2 },
 	},
+	"presets": {
+		// named preset definitions - referenced by `usePresets`
+		"claude-code": [
+			{
+				"name": "Claude Code project sessions",
+				"tool": "claude-code",
+				"paths": ["./.claude/sessions"],
+			},
+			{
+				"name": "Claude Code global artifacts",
+				"tool": "claude-code",
+				"paths": ["~/.claude/projects", "~/.claude/sessions" /* ... */],
+				"kind": "any",
+				"risk": "aggressive",
+			},
+		],
+		// ... see config.example.json for the full set
+	},
 	"targets": [
-		// explicit targets (preferred)
+		// explicit targets (preferred for one-offs not worth a preset)
 		{
 			"name": "Local harness logs",
 			"tool": "test-harness",
@@ -50,19 +68,20 @@ See [`config.example.json`](./config.example.json). All fields are optional unle
 		},
 	],
 	"targetPaths": ["./test-harness"], // legacy: each subdir becomes its own target
-	"usePresets": [
-		"claude-code",
-		"codex",
-		"kilocode",
-		"opencode",
-		"kiro",
-		"cursor",
-		"cline",
-		"windsurf",
-		"antigravity",
-	],
+	"usePresets": ["claude-code", "codex" /* ... */], // optional; omit to run all presets
 }
 ```
+
+### Presets
+
+`presets` is a name → target-list map. Presets and `targets` share the same shape (`name`, `tool`, `paths`, `kind`, `retention`, `risk`, `enabled`).
+
+`usePresets` is optional:
+
+- **Omitted (default)** — every preset defined in `presets` is active.
+- **Provided** — only the named presets run; the rest are defined-but-inactive. Useful when one config is shared across machines that have different agents installed. Names not found in `presets` are warned about and skipped.
+
+The shipped `config.example.json` defines presets for every supported agent — copy it as a starting point, then add or trim entries as needed for your machine.
 
 ### Retention policies
 

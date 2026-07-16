@@ -3,15 +3,205 @@
 	"defaultRetention": {
 		"keepCount": 5
 	},
-	"overrides": {
-		"aider": {
-			"keepCount": 2
-		},
-		"cascade": {
-			"keepDays": 7
-		}
+	"presets": {
+		"antigravity": [
+			{
+				"name": "Antigravity project sessions",
+				"paths": ["./.antigravity/sessions"],
+				"tool": "antigravity"
+			},
+			{
+				"kind": "any",
+				"name": "Antigravity global sessions, cache, and logs",
+				"paths": ["~/.antigravity/sessions", "~/.antigravity/cache", "~/.antigravity/logs"],
+				"risk": "aggressive",
+				"tool": "antigravity"
+			}
+		],
+		"claude-code": [
+			{
+				"name": "Claude Code project sessions",
+				"paths": ["./.claude/sessions"],
+				"tool": "claude-code"
+			},
+			{
+				"kind": "any",
+				"name": "Claude Code global artifacts",
+				"paths": [
+					"~/.claude/projects",
+					"~/.claude/logs",
+					"~/.claude/sessions",
+					"~/.claude/todos",
+					"~/.claude/tasks",
+					"~/.claude/shell-snapshots",
+					"~/.claude/file-history",
+					"~/.claude/paste-cache",
+					"~/.claude/session-env",
+					"~/.claude/session-reports",
+					"~/.claude/cache",
+					"~/.claude/debug",
+					"~/.claude/telemetry",
+					"~/.claude/statsig",
+					"~/.claude/backups"
+				],
+				"risk": "aggressive",
+				"tool": "claude-code"
+			}
+		],
+		"cline": [
+			{
+				"name": "Cline project task history",
+				"paths": ["./.cline/tasks"],
+				"tool": "cline"
+			},
+			{
+				"kind": "any",
+				"name": "Cline global sessions, logs, workspaces, and worktrees",
+				"paths": [
+					"~/.cline/data/sessions",
+					"~/.cline/data/logs",
+					"~/.cline/data/workspaces",
+					"~/.cline/worktrees",
+					"~/.cline/kanban/workspaces"
+				],
+				"risk": "aggressive",
+				"tool": "cline"
+			}
+		],
+		"codeium": [
+			{
+				"kind": "any",
+				"name": "Codeium / Windsurf-Next Cascade artifacts",
+				"paths": [
+					"~/.codeium/windsurf-next/cascade",
+					"~/.codeium/windsurf-next/code_tracker",
+					"~/.codeium/windsurf-next/codemaps",
+					"~/.codeium/windsurf-next/context_state",
+					"~/.codeium/windsurf-next/implicit",
+					"~/.codeium/windsurf-next/database",
+					"~/.codeium/windsurf-next/brain",
+					"~/.codeium/windsurf-next/windsurf"
+				],
+				"risk": "aggressive",
+				"tool": "codeium"
+			},
+			{
+				"kind": "any",
+				"name": "Codeium / Windsurf Cascade artifacts",
+				"paths": [
+					"~/.codeium/windsurf/cascade",
+					"~/.codeium/windsurf/code_tracker",
+					"~/.codeium/windsurf/codemaps",
+					"~/.codeium/windsurf/context_state",
+					"~/.codeium/windsurf/implicit",
+					"~/.codeium/windsurf/database",
+					"~/.codeium/windsurf/brain",
+					"~/.codeium/windsurf/windsurf"
+				],
+				"risk": "aggressive",
+				"tool": "codeium"
+			}
+		],
+		"codex": [
+			{
+				"name": "Codex project sessions",
+				"paths": ["./.codex/sessions"],
+				"tool": "codex"
+			},
+			{
+				"kind": "any",
+				"name": "Codex global sessions, cache, log, and tmp",
+				"paths": ["~/.codex/sessions", "~/.codex/cache", "~/.codex/log", "~/.codex/tmp"],
+				"risk": "aggressive",
+				"tool": "codex"
+			}
+		],
+		"cursor": [
+			{
+				"name": "Cursor agent history",
+				"paths": ["./.cursor/history", "./.cursor/sessions"],
+				"tool": "cursor"
+			},
+			{
+				"kind": "any",
+				"name": "Cursor cache and logs",
+				"paths": ["~/AppData/Roaming/Cursor/logs", "~/AppData/Roaming/Cursor/CachedData"],
+				"risk": "aggressive",
+				"tool": "cursor"
+			}
+		],
+		"gemini": [
+			{
+				"kind": "any",
+				"name": "Gemini global sessions, cache, and logs",
+				"paths": ["~/.gemini/sessions", "~/.gemini/cache", "~/.gemini/logs"],
+				"risk": "aggressive",
+				"tool": "gemini"
+			}
+		],
+		"kilocode": [
+			{
+				"name": "Kilocode project task history",
+				"paths": ["./.kilocode/tasks"],
+				"tool": "kilocode"
+			},
+			{
+				"kind": "any",
+				"name": "Kilocode CLI logs, workspaces, and global state",
+				"paths": [
+					"~/.kilocode/cli/logs",
+					"~/.kilocode/cli/workspaces",
+					"~/.kilocode/cli/global/cache",
+					"~/.kilocode/cli/global/tasks",
+					"~/.kilocode/cli/global/puppeteer"
+				],
+				"risk": "aggressive",
+				"tool": "kilocode"
+			}
+		],
+		"kiro": [
+			{
+				"name": "Kiro project run artifacts",
+				"paths": ["./.kiro/runs", "./.kiro/history"],
+				"tool": "kiro"
+			},
+			{
+				"kind": "any",
+				"name": "Kiro global runs, cache, and logs",
+				"paths": ["~/.kiro/runs", "~/.kiro/cache", "~/.kiro/logs"],
+				"risk": "aggressive",
+				"tool": "kiro"
+			}
+		],
+		"opencode": [
+			{
+				"name": "OpenCode project sessions",
+				"paths": ["./.opencode/sessions"],
+				"tool": "opencode"
+			},
+			{
+				"kind": "any",
+				"name": "OpenCode global sessions, cache, and logs",
+				"paths": ["~/.opencode/sessions", "~/.opencode/cache", "~/.opencode/logs"],
+				"risk": "aggressive",
+				"tool": "opencode"
+			}
+		],
+		"windsurf": [
+			{
+				"name": "Windsurf project sessions",
+				"paths": ["./.windsurf/sessions"],
+				"tool": "windsurf"
+			},
+			{
+				"kind": "any",
+				"name": "Windsurf global plans and worktrees",
+				"paths": ["~/.windsurf/plans", "~/.windsurf/worktrees"],
+				"risk": "aggressive",
+				"tool": "windsurf"
+			}
+		]
 	},
-	"targetPaths": ["./test-harness"],
 	"targets": [
 		{
 			"kind": "any",
@@ -23,16 +213,5 @@
 			"risk": "aggressive",
 			"tool": "test-harness"
 		}
-	],
-	"usePresets": [
-		"claude-code",
-		"codex",
-		"kilocode",
-		"opencode",
-		"kiro",
-		"cursor",
-		"cline",
-		"windsurf",
-		"antigravity"
 	]
 }

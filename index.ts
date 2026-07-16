@@ -25,6 +25,7 @@ interface Config {
 	aggressive?: boolean;
 	defaultRetention?: RetentionPolicy;
 	overrides?: Record<string, RetentionPolicy>;
+	presets?: Record<string, CleanupTarget[]>;
 	targetPaths?: string[];
 	targets?: CleanupTarget[];
 	usePresets?: string[];
@@ -111,133 +112,13 @@ Options:
 
 See config.example.json for configuration format.`;
 
-const PRESETS: Record<string, CleanupTarget[]> = {
-	'claude-code': [
-		{
-			name: 'Claude Code project sessions',
-			tool: 'claude-code',
-			paths: ['./.claude/sessions'],
-		},
-		{
-			name: 'Claude Code global sessions and logs',
-			tool: 'claude-code',
-			paths: ['~/.claude/projects', '~/.claude/logs'],
-			kind: 'any',
-			risk: 'aggressive',
-		},
-	],
-	codex: [
-		{
-			name: 'Codex project sessions',
-			tool: 'codex',
-			paths: ['./.codex/sessions'],
-		},
-		{
-			name: 'Codex global sessions, cache, and logs',
-			tool: 'codex',
-			paths: ['~/.codex/sessions', '~/.codex/cache', '~/.codex/logs'],
-			kind: 'any',
-			risk: 'aggressive',
-		},
-	],
-	kilocode: [
-		{
-			name: 'Kilocode project task history',
-			tool: 'kilocode',
-			paths: ['./.kilocode/tasks'],
-		},
-		{
-			name: 'Kilocode global tasks, cache, and logs',
-			tool: 'kilocode',
-			paths: ['~/.kilocode/tasks', '~/.kilocode/cache', '~/.kilocode/logs'],
-			kind: 'any',
-			risk: 'aggressive',
-		},
-	],
-	opencode: [
-		{
-			name: 'OpenCode project sessions',
-			tool: 'opencode',
-			paths: ['./.opencode/sessions'],
-		},
-		{
-			name: 'OpenCode global sessions, cache, and logs',
-			tool: 'opencode',
-			paths: ['~/.opencode/sessions', '~/.opencode/cache', '~/.opencode/logs'],
-			kind: 'any',
-			risk: 'aggressive',
-		},
-	],
-	kiro: [
-		{
-			name: 'Kiro project run artifacts',
-			tool: 'kiro',
-			paths: ['./.kiro/runs', './.kiro/history'],
-		},
-		{
-			name: 'Kiro global runs, cache, and logs',
-			tool: 'kiro',
-			paths: ['~/.kiro/runs', '~/.kiro/cache', '~/.kiro/logs'],
-			kind: 'any',
-			risk: 'aggressive',
-		},
-	],
-	cursor: [
-		{
-			name: 'Cursor agent history',
-			tool: 'cursor',
-			paths: ['./.cursor/history', './.cursor/sessions'],
-		},
-		{
-			name: 'Cursor cache and logs',
-			tool: 'cursor',
-			paths: ['~/AppData/Roaming/Cursor/logs', '~/AppData/Roaming/Cursor/CachedData'],
-			kind: 'any',
-			risk: 'aggressive',
-		},
-	],
-	cline: [
-		{
-			name: 'Cline project task history',
-			tool: 'cline',
-			paths: ['./.cline/tasks'],
-		},
-		{
-			name: 'Cline global tasks, cache, and logs',
-			tool: 'cline',
-			paths: ['~/.cline/tasks', '~/.cline/cache', '~/.cline/logs'],
-			kind: 'any',
-			risk: 'aggressive',
-		},
-	],
-	windsurf: [
-		{
-			name: 'Windsurf project sessions',
-			tool: 'windsurf',
-			paths: ['./.windsurf/sessions'],
-		},
-		{
-			name: 'Windsurf global sessions, cache, and logs',
-			tool: 'windsurf',
-			paths: ['~/.windsurf/sessions', '~/.windsurf/cache', '~/.windsurf/logs'],
-			kind: 'any',
-			risk: 'aggressive',
-		},
-	],
-	antigravity: [
-		{
-			name: 'Antigravity project sessions',
-			tool: 'antigravity',
-			paths: ['./.antigravity/sessions'],
-		},
-		{
-			name: 'Antigravity global sessions, cache, and logs',
-			tool: 'antigravity',
-			paths: ['~/.antigravity/sessions', '~/.antigravity/cache', '~/.antigravity/logs'],
-			kind: 'any',
-			risk: 'aggressive',
-		},
-	],
+const validateCleanupTarget = (target: CleanupTarget, label: string) => {
+	if (!target.name || !target.tool || !Array.isArray(target.paths) || target.paths.length === 0) {
+		throw new Error(`${label} must define name, tool, and at least one path.`);
+	}
+	if (target.retention) {
+		validateRetentionPolicy(target.retention, `${label}.retention`);
+	}
 };
 
 const parseArgs = () => {
@@ -328,18 +209,16 @@ const validateConfig = (config: Config) => {
 	for (const [name, policy] of Object.entries(config.overrides || {})) {
 		validateRetentionPolicy(policy, `overrides.${name}`);
 	}
+	for (const [presetName, preset] of Object.entries(config.presets || {})) {
+		if (!Array.isArray(preset)) {
+			throw new Error(`presets.${presetName} must be an array of targets.`);
+		}
+		preset.forEach((target, idx) => {
+			validateCleanupTarget(target, `presets.${presetName}[${idx}]`);
+		});
+	}
 	for (const target of config.targets || []) {
-		if (
-			!target.name ||
-			!target.tool ||
-			!Array.isArray(target.paths) ||
-			target.paths.length === 0
-		) {
-			throw new Error('Each target must define name, tool, and at least one path.');
-		}
-		if (target.retention) {
-			validateRetentionPolicy(target.retention, `targets.${target.name}.retention`);
-		}
+		validateCleanupTarget(target, `targets.${target.name || '<unnamed>'}`);
 	}
 };
 
@@ -542,8 +421,10 @@ const legacyTargetsFromConfig = (config: Config, explicitPaths: Set<string>): Cl
 };
 
 const presetTargetsFromConfig = (config: Config): CleanupTarget[] => {
-	return (config.usePresets || []).flatMap((presetName) => {
-		const preset = PRESETS[presetName];
+	const presets = config.presets || {};
+	const selected = config.usePresets ?? Object.keys(presets);
+	return selected.flatMap((presetName) => {
+		const preset = presets[presetName];
 		if (!preset) {
 			console.warn(`Unknown preset: ${presetName}`);
 			return [];

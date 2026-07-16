@@ -11,6 +11,20 @@ All notable changes to this project will be documented in this file. Format foll
 - `RetentionPolicy.allowEmpty` flag. `keepCount: 0` now requires `allowEmpty: true` on the same policy; otherwise validation fails fast with a clear error.
 - Friendly error messages when the config file cannot be read or contains invalid JSON.
 - `README.md` and this changelog.
+- `codeium` preset covering both `~/.codeium/windsurf-next/{cascade,code_tracker,codemaps,context_state,implicit,database,brain,windsurf}` and the parallel `~/.codeium/windsurf/...` (stable channel) layout.
+- `gemini` preset (forward-compat) covering `~/.gemini/{sessions,cache,logs}`.
+- Both new presets enabled in `config.json` / `config.example.json` defaults.
+
+### Changed
+
+- **Preset definitions moved from `index.ts` into config (`config.presets`).** The previously hardcoded `PRESETS` map is gone; preset targets now live in `config.json` / `config.example.json` under a new top-level `presets` object, keyed by preset name. Users can now add, edit, or remove presets without modifying source.
+- `usePresets` is now optional. When omitted, every preset defined in `config.presets` is active. When present, it filters to the named subset (useful for sharing one config across machines with different agents installed). The shipped `config.json` no longer defines `usePresets`; `config.example.json` retains it as a documented override.
+- `claude-code` global preset expanded from `projects`/`logs` to also cover `~/.claude/{sessions,todos,tasks,shell-snapshots,file-history,paste-cache,session-env,session-reports,cache,debug,telemetry,statsig,backups}`. Sensitive-name filter continues to protect `settings.json`, `security_warnings_state*`, and other config artifacts inside these dirs.
+- `codex` preset: `~/.codex/logs` → `~/.codex/log` (the actual directory name is singular); added `~/.codex/tmp`.
+- `cline` global preset replaced — `~/.cline/{tasks,cache,logs}` (none of which exist) → `~/.cline/data/{sessions,logs,workspaces}`, `~/.cline/worktrees`, `~/.cline/kanban/workspaces`.
+- `kilocode` global preset replaced — `~/.kilocode/{tasks,cache,logs}` (none of which exist) → `~/.kilocode/cli/{logs,workspaces}` and `~/.kilocode/cli/global/{cache,tasks,puppeteer}`.
+- `windsurf` global preset replaced — `~/.windsurf/{sessions,cache,logs}` (none of which exist) → `~/.windsurf/{plans,worktrees}`.
+- `kiro` global paths (`~/.kiro/{runs,cache,logs}`) are forward-compat placeholders — none currently exist on disk; the preset is left wired in case Kiro ever creates them.
 
 ### Changed
 

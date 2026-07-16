@@ -1,21 +1,33 @@
+# Dependencies
 node_modules/
-.env
-bun.lock
+
+# generated
+.claude/
+CLAUDE.md
+.aidd/
+.claude/
+.windsurf/
+opencode.json
+dist/
 
 # logs/temp
 *.log
-logs/
 /tmp/
+logs/
+*.tmp
+*.bak
+.tmp/
+nul/
 
 # build/cache
 dist/
 *.tsbuildinfo
 
-# tooling
-.aidd/
-.claude/
-.windsurf/
-opencode.json
+# Environment
+.env
+.env.local
+.env.*.local
 
-# project fixtures (do not reformat)
-test-harness/
+# OS
+.DS_Store
+Thumbs.db
