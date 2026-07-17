@@ -1,2 +1,2 @@
-- \[ ] --older-than 30d
--
+- [ ] --older-than 30d
+- [ ] target specific agent(s)

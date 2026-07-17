@@ -2,13 +2,15 @@
 node_modules/
 
 # generated
+.agents/
+.codex/
 .claude/
-CLAUDE.md
 .aidd/
 .claude/
 .windsurf/
 opencode.json
 dist/
+AGENTS.md
 
 # logs/temp
 *.log
