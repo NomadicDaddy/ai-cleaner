@@ -5,12 +5,30 @@ node_modules/
 .agents/
 .codex/
 .claude/
-.aidd/
-.claude/
 .windsurf/
 opencode.json
 dist/
 AGENTS.md
+
+# aidd / agent-generated artifacts
+# Derived from aidd's artifact catalog: ignore exactly the runtime/generated/secret rows;
+# everything else under .aidd/ is a durable blueprint and is committed on purpose.
+# generated — reproducible by re-running the producer
+.aidd/_common/
+.aidd/.artifacts-check.json
+.aidd/audit-reports/
+.aidd/audits/
+.aidd/feature-review-report.md
+.aidd/remediation-review.md
+.aidd/reports/
+.aidd/response-review.md
+# runtime — meaningful only for the run that wrote it
+.aidd/active-runs/
+.aidd/iterations/
+.aidd/runs.jsonl
+.aidd/.stop
+# secret — provider API keys, web.authToken, botToken; never commit
+.aidd/aidd.config.json
 
 # logs/temp
 *.log
