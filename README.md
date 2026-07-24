@@ -149,6 +149,10 @@ bun run smoke:qc
 `smoke:qc` checks formatting and types, runs the isolated filesystem suite, and builds the Bun
 bundle.
 
+The pre-push hook also protects local AIDD metadata. Repositories without a push remote can keep
+their `.aidd` blueprint tracked locally. If a push remote is configured, the hook refuses tracked
+or historical `.aidd` content and fails closed when it cannot inspect the pushed revision range.
+
 ## License
 
 MIT

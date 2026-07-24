@@ -1,5 +1,3 @@
-* \[ ] --older-than 30d
-* \[ ] target specific agent(s)
-* \[ ] support cleaning: {HOME}\\.agent-browser
-* 
-
+- \[ ] --older-than 30d
+- \[ ] target specific agent(s)
+- \[ ] support cleaning: {HOME}\\.agent-browser

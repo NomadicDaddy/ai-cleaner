@@ -405,14 +405,16 @@ const loadConfig = (configPath: string): Config => {
 	let raw: string;
 	try {
 		raw = fs.readFileSync(fullPath, 'utf8');
-	} catch (error) {
-		throw new Error(`Failed to read config ${fullPath}: ${errorMessage(error)}`);
+	} catch (err) {
+		throw new Error(`Failed to read config ${fullPath}: ${errorMessage(err)}`, {
+			cause: err,
+		});
 	}
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(raw) as unknown;
-	} catch (error) {
-		throw new Error(`Invalid JSON in ${fullPath}: ${errorMessage(error)}`);
+	} catch (err) {
+		throw new Error(`Invalid JSON in ${fullPath}: ${errorMessage(err)}`, { cause: err });
 	}
 	return parseConfig(parsed);
 };
@@ -453,12 +455,14 @@ const assertPathHasNoLinks = (candidatePath: string, label: string): void => {
 		let stats: fs.Stats;
 		try {
 			stats = fs.lstatSync(current);
-		} catch (error) {
-			const code = isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
+		} catch (err) {
+			const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
 			if (code === 'ENOENT') {
 				return;
 			}
-			throw new Error(`Cannot inspect ${label} ${current}: ${errorMessage(error)}`);
+			throw new Error(`Cannot inspect ${label} ${current}: ${errorMessage(err)}`, {
+				cause: err,
+			});
 		}
 		if (stats.isSymbolicLink()) {
 			throw new Error(`${label} traverses a symbolic link or junction: ${current}`);
@@ -475,10 +479,12 @@ const planRoot = (configuredPath: string, label: string): PlannedRoot => {
 	let canonicalPath = resolvedPath;
 	try {
 		canonicalPath = fs.realpathSync.native(resolvedPath);
-	} catch (error) {
-		const code = isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
+	} catch (err) {
+		const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
 		if (code !== 'ENOENT') {
-			throw new Error(`Cannot resolve ${label} ${resolvedPath}: ${errorMessage(error)}`);
+			throw new Error(`Cannot resolve ${label} ${resolvedPath}: ${errorMessage(err)}`, {
+				cause: err,
+			});
 		}
 	}
 	if (isDangerousPath(canonicalPath)) {
@@ -536,12 +542,12 @@ const listArtifacts = (
 	let rootStats: fs.Stats;
 	try {
 		rootStats = fs.lstatSync(root.resolvedPath);
-	} catch (error) {
-		const code = isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
+	} catch (err) {
+		const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
 		if (code === 'ENOENT') {
 			return { artifacts: [], failed: 0 };
 		}
-		console.error(`Cannot inspect ${root.resolvedPath}: ${errorMessage(error)}`);
+		console.error(`Cannot inspect ${root.resolvedPath}: ${errorMessage(err)}`);
 		return { artifacts: [], failed: 1 };
 	}
 	if (rootStats.isSymbolicLink()) {
@@ -561,8 +567,8 @@ const listArtifacts = (
 	let entries: fs.Dirent[];
 	try {
 		entries = fs.readdirSync(root.resolvedPath, { withFileTypes: true });
-	} catch (error) {
-		console.error(`Cannot read ${root.resolvedPath}: ${errorMessage(error)}`);
+	} catch (err) {
+		console.error(`Cannot read ${root.resolvedPath}: ${errorMessage(err)}`);
 		return { artifacts: [], failed: 1 };
 	}
 
@@ -586,8 +592,8 @@ const listArtifacts = (
 			if (matchesKind(artifact, kind)) {
 				artifacts.push(artifact);
 			}
-		} catch (error) {
-			console.error(`Cannot inspect ${artifactPath}: ${errorMessage(error)}`);
+		} catch (err) {
+			console.error(`Cannot inspect ${artifactPath}: ${errorMessage(err)}`);
 			failed++;
 		}
 	}
@@ -611,8 +617,8 @@ const inspectProtectedSubtree = (artifactPath: string): string | undefined => {
 	let stats: fs.Stats;
 	try {
 		stats = fs.lstatSync(artifactPath);
-	} catch (error) {
-		throw new Error(`Cannot inspect ${artifactPath}: ${errorMessage(error)}`);
+	} catch (err) {
+		throw new Error(`Cannot inspect ${artifactPath}: ${errorMessage(err)}`, { cause: err });
 	}
 	if (stats.isSymbolicLink()) {
 		return `symbolic link or junction ${artifactPath}`;
@@ -623,8 +629,8 @@ const inspectProtectedSubtree = (artifactPath: string): string | undefined => {
 	let entries: fs.Dirent[];
 	try {
 		entries = fs.readdirSync(artifactPath, { withFileTypes: true });
-	} catch (error) {
-		throw new Error(`Cannot read ${artifactPath}: ${errorMessage(error)}`);
+	} catch (err) {
+		throw new Error(`Cannot read ${artifactPath}: ${errorMessage(err)}`, { cause: err });
 	}
 	for (const entry of entries) {
 		const protectedDescendant = inspectProtectedSubtree(path.join(artifactPath, entry.name));
@@ -705,9 +711,9 @@ const processTarget = (
 				console.log(`Deleting: ${artifact.path}`);
 				fs.rmSync(artifact.path, { recursive: true, force: false });
 				result.matched++;
-			} catch (error) {
+			} catch (err) {
 				console.error(
-					`Refusing or failing to delete ${artifact.path}: ${errorMessage(error)}`
+					`Refusing or failing to delete ${artifact.path}: ${errorMessage(err)}`
 				);
 				result.failed++;
 			}
@@ -723,13 +729,15 @@ const legacyTargetsFromConfig = (config: Config, explicitPaths: Set<string>): Cl
 		let entries: fs.Dirent[];
 		try {
 			entries = fs.readdirSync(root.resolvedPath, { withFileTypes: true });
-		} catch (error) {
-			const code = isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
+		} catch (err) {
+			const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
 			if (code === 'ENOENT') {
 				console.warn(`Target path does not exist: ${root.resolvedPath}`);
 				continue;
 			}
-			throw new Error(`Cannot read ${root.resolvedPath}: ${errorMessage(error)}`);
+			throw new Error(`Cannot read ${root.resolvedPath}: ${errorMessage(err)}`, {
+				cause: err,
+			});
 		}
 		for (const dirent of entries) {
 			if (!dirent.isDirectory() || dirent.isSymbolicLink()) {
@@ -825,9 +833,9 @@ const isMainModule =
 if (isMainModule) {
 	try {
 		process.exitCode = run();
-	} catch (error) {
-		console.error(errorMessage(error));
-		if (error instanceof CliError) {
+	} catch (err) {
+		console.error(errorMessage(err));
+		if (err instanceof CliError) {
 			console.error(HELP_TEXT);
 			process.exitCode = 2;
 		} else {
