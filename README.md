@@ -105,26 +105,25 @@ errors.
 
 ## Agent coverage
 
-Coverage was checked against `D:\applications\ai\Fix-SkillSymlinks.ps1`. That script distributes
-skills and agents into some tool homes; those linked resources are protected and are never cleanup
-targets.
+The bundled config covers the canonical coding-agent homes. Some of these homes also receive
+distributed skills and agents; those linked resources are protected and are never cleanup targets.
 
-| Agent or home      | Cleanup coverage                                                               |
-| ------------------ | ------------------------------------------------------------------------------ |
-| Claude Code        | Project sessions plus global cache, debug, logs, reports, snapshots, telemetry |
-| Kilo               | Runtime logs and cache; `.config/kilo` skills and agents are preserved         |
-| OpenCode           | Runtime logs and cache; `.config/opencode` skills and agents are preserved     |
-| Codeium / Windsurf | Covered with no active target because no safe disposable leaf was proven       |
-| Generic `.agents`  | Distribution-only home; no cleanup target                                      |
-| Codex              | Cache, logs, and temporary directories; sessions and memories are preserved    |
-| Gemini             | Distribution-only on the inspected machine; no cleanup target                  |
-| Grok               | Logs and memory traces                                                         |
-| Kiro               | Distribution-only on the inspected machine; no cleanup target                  |
-| Antigravity        | Nested Gemini skill home only; no cleanup target                               |
-| Cursor             | Project history plus Cursor logs and cached application data                   |
-| Copilot            | Distribution-only on the inspected machine; no cleanup target                  |
-| Zcode              | CLI logs, v2 logs, and archived crashes                                        |
-| Cline              | Additional cleaner-only coverage for project tasks and session directories     |
+| Agent or home     | Cleanup coverage                                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| Claude Code       | Project sessions plus global cache, debug, logs, reports, snapshots, telemetry                             |
+| Kilo              | Runtime logs and cache; `.config/kilo` skills and agents are preserved                                     |
+| OpenCode          | Runtime logs and cache; `.config/opencode` skills and agents are preserved                                 |
+| Windsurf          | No active target; no safe disposable leaf was proven (`.codeium/windsurf` and `.windsurf` homes preserved) |
+| Generic `.agents` | Distribution-only home; no cleanup target                                                                  |
+| Codex             | Cache, logs, and temporary directories; sessions and memories are preserved                                |
+| Gemini            | Distribution-only on the inspected machine; no cleanup target                                              |
+| Grok              | Logs and memory traces                                                                                     |
+| Kiro              | Distribution-only on the inspected machine; no cleanup target                                              |
+| Antigravity       | Nested Gemini skill home only; no cleanup target                                                           |
+| Cursor            | Project history plus Cursor logs and cached application data                                               |
+| Copilot           | Distribution-only on the inspected machine; no cleanup target                                              |
+| Zcode             | CLI logs, v2 logs, and archived crashes                                                                    |
+| Cline             | Project task history and session directories                                                               |
 
 ## Safety
 

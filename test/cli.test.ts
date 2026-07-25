@@ -271,7 +271,7 @@ describe('CLI and packaged defaults', () => {
 		expect(result.stdout).toContain('DRY RUN MODE ENABLED');
 	});
 
-	test('the bundled config covers every Fix-SkillSymlinks agent home safely', () => {
+	test('the bundled config covers every canonical agent home safely', () => {
 		const config = JSON.parse(
 			fs.readFileSync(path.join(repositoryRoot, 'config.json'), 'utf8')
 		) as {
@@ -281,7 +281,7 @@ describe('CLI and packaged defaults', () => {
 			'agents',
 			'antigravity',
 			'claude-code',
-			'codeium-windsurf',
+			'cline',
 			'codex',
 			'copilot',
 			'cursor',
@@ -290,6 +290,7 @@ describe('CLI and packaged defaults', () => {
 			'kilo',
 			'kiro',
 			'opencode',
+			'windsurf',
 			'zcode',
 		];
 		for (const preset of requiredPresets) {

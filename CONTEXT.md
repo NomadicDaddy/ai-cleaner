@@ -132,13 +132,12 @@ listed -> matched (passes kind filter) -> selected (fails retention) -> deleted 
 
 ## Flagged Ambiguities
 
-### `codeium-windsurf` vs `windsurf` presets
+### `codeium-windsurf` vs `windsurf` presets (resolved)
 
-The bundled `config.json` contains two empty presets: `codeium-windsurf` and `windsurf`.
-The spec lists "Codeium / Windsurf" as a single entry with "no proven disposable leaf."
-The test suite checks for `codeium-windsurf` but not `windsurf`. Are these the same
-agent home recorded under two names, or distinct homes? If they are the same, one should
-be removed. If distinct, the spec table should list them separately.
+These were the same agent home recorded under two names. The bundled `config.json` now
+keeps a single `windsurf` preset (empty), the canonical identifier for this home. Windsurf may
+live at `~/.codeium/windsurf` (legacy) or `~/.windsurf` (upstream); both are recognized. No safe
+disposable leaf has been proven for either, so the preset remains empty.
 
 ### `overrides` scope
 

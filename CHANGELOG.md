@@ -10,7 +10,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - The package now installs an `ai-cleaner` command and includes its default configuration when packed.
-- Presets now cover every agent home managed by `Fix-SkillSymlinks.ps1`, including new cleanup targets for Grok and Zcode and corrected runtime paths for Kilo and OpenCode.
+- Presets now cover every canonical agent home, including new cleanup targets for Grok and Zcode and corrected runtime paths for Kilo and OpenCode.
 - Presets can be defined and selected entirely in `config.json`; empty presets record agent homes that have no proven disposable files.
 
 ### Changed
