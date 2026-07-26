@@ -74,6 +74,84 @@
 				"tool": "cursor"
 			}
 		],
+		"devin": [
+			{
+				"kind": "directory",
+				"name": "Devin editor logs",
+				"paths": ["~/AppData/Roaming/devin/logs"],
+				"retention": {
+					"keepCount": 5
+				},
+				"risk": "aggressive",
+				"tool": "devin"
+			},
+			{
+				"kind": "any",
+				"name": "Devin CLI logs and crash reports",
+				"paths": [
+					"~/AppData/Roaming/devin/cli/logs",
+					"~/AppData/Roaming/devin/Crashpad/reports"
+				],
+				"retention": {
+					"keepDays": 14
+				},
+				"risk": "aggressive",
+				"tool": "devin"
+			},
+			{
+				"kind": "directory",
+				"name": "Devin superseded build caches",
+				"paths": ["~/AppData/Roaming/devin/CachedData"],
+				"retention": {
+					"keepCount": 2
+				},
+				"risk": "aggressive",
+				"tool": "devin"
+			},
+			{
+				"kind": "any",
+				"name": "Devin downloaded extension installers",
+				"paths": ["~/AppData/Roaming/devin/CachedExtensionVSIXs"],
+				"retention": {
+					"keepDays": 14
+				},
+				"risk": "aggressive",
+				"tool": "devin"
+			},
+			{
+				"kind": "any",
+				"name": "Devin editor shell caches",
+				"paths": [
+					"~/AppData/Roaming/devin/Cache",
+					"~/AppData/Roaming/devin/Code Cache",
+					"~/AppData/Roaming/devin/DawnGraphiteCache",
+					"~/AppData/Roaming/devin/DawnWebGPUCache",
+					"~/AppData/Roaming/devin/GPUCache"
+				],
+				"retention": {
+					"allowEmpty": true,
+					"keepCount": 0
+				},
+				"risk": "aggressive",
+				"tool": "devin"
+			},
+			{
+				"kind": "any",
+				"name": "Devin Next editor shell caches",
+				"paths": [
+					"~/AppData/Roaming/Devin - Next/Cache",
+					"~/AppData/Roaming/Devin - Next/DawnGraphiteCache",
+					"~/AppData/Roaming/Devin - Next/DawnWebGPUCache",
+					"~/AppData/Roaming/Devin - Next/GPUCache"
+				],
+				"retention": {
+					"allowEmpty": true,
+					"keepCount": 0
+				},
+				"risk": "aggressive",
+				"tool": "devin"
+			}
+		],
 		"gemini": [],
 		"grok": [
 			{
@@ -110,6 +188,55 @@
 				},
 				"risk": "aggressive",
 				"tool": "opencode"
+			}
+		],
+		"t3code": [
+			{
+				"kind": "any",
+				"name": "T3 Code rotated server and desktop logs",
+				"paths": ["~/.t3/userdata/logs"],
+				"retention": {
+					"keepCount": 5
+				},
+				"risk": "aggressive",
+				"tool": "t3code"
+			},
+			{
+				"kind": "file",
+				"name": "T3 Code provider capability caches",
+				"paths": ["~/.t3/caches"],
+				"retention": {
+					"keepDays": 14
+				},
+				"risk": "aggressive",
+				"tool": "t3code"
+			},
+			{
+				"kind": "any",
+				"name": "T3 Code desktop shell caches",
+				"paths": [
+					"~/AppData/Roaming/t3code/Cache",
+					"~/AppData/Roaming/t3code/Code Cache",
+					"~/AppData/Roaming/t3code/DawnGraphiteCache",
+					"~/AppData/Roaming/t3code/DawnWebGPUCache",
+					"~/AppData/Roaming/t3code/GPUCache"
+				],
+				"retention": {
+					"allowEmpty": true,
+					"keepCount": 0
+				},
+				"risk": "aggressive",
+				"tool": "t3code"
+			},
+			{
+				"kind": "any",
+				"name": "T3 Code stale pending updates",
+				"paths": ["~/AppData/Local/t3code-updater/pending"],
+				"retention": {
+					"keepDays": 14
+				},
+				"risk": "aggressive",
+				"tool": "t3code"
 			}
 		],
 		"windsurf": [],

@@ -124,6 +124,25 @@ distributed skills and agents; those linked resources are protected and are neve
 | Copilot           | Distribution-only on the inspected machine; no cleanup target                                              |
 | Zcode             | CLI logs, v2 logs, and archived crashes                                                                    |
 | Cline             | Project task history and session directories                                                               |
+| Devin             | Editor and CLI logs, crash reports, superseded build caches, shell caches (both channels)                  |
+| T3 Code           | Rotated `~/.t3` logs, provider caches, desktop shell caches, stale pending updates                         |
+
+Devin is a VS Code fork, so its userData tree mixes editor caches with editor _state_. Only the caches
+and logs are targets. `Backups` (hot-exit buffers for unsaved files), `User/History` (local file
+history), `User/workspaceStorage`, `mcp/` (including its OAuth tokens), and `cli/sessions.db` are not.
+`CachedData` uses `keepCount` because its children are per-build hash directories: keeping the two
+newest preserves the running build's cache and drops the superseded ones.
+
+T3 Code stores disposable logs beside irreplaceable state in one tree, so its targets are deliberately
+narrow. `~/.t3/userdata` holds `state.sqlite` (every thread and session), `secrets/`, `clerk-tokens.json`,
+`attachments/`, and the settings files; `~/.t3/worktrees` holds live git worktrees. None of those are
+targets — only `~/.t3/userdata/logs` and `~/.t3/caches` are. The rotated `server.trace.ndjson.N` files are
+10 MB each and dominate the home, which is why that target uses `keepCount` rather than `keepDays`:
+rotation count, not age, is what bounds them.
+
+Close the Devin and T3 Code desktop apps before applying their shell-cache targets. Chromium holds
+open handles on `Cache` and `GPUCache` while either runs, and a locked file becomes a deletion
+failure and a nonzero exit.
 
 ## Safety
 

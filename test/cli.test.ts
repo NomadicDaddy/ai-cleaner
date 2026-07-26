@@ -285,11 +285,13 @@ describe('CLI and packaged defaults', () => {
 			'codex',
 			'copilot',
 			'cursor',
+			'devin',
 			'gemini',
 			'grok',
 			'kilo',
 			'kiro',
 			'opencode',
+			't3code',
 			'windsurf',
 			'zcode',
 		];
