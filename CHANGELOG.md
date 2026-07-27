@@ -5,6 +5,32 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-27
+
+### Added
+
+- The bundled configuration now covers Devin (editor and CLI logs, crash reports, superseded build caches, and editor shell caches for both channels) and T3 Code (rotated server and desktop logs, provider capability caches, desktop shell caches, and stale pending updates). Both tools store disposable data beside irreplaceable state, so their targets are deliberately narrow.
+- A tracked MIT `LICENSE` file is now included in the published package, matching the terms the manifest and README already declared.
+- An ESLint toolchain was added to the project, exposed through a `lint` script and folded into `smoke:qc`.
+- A pre-push git hook (`aidd-history-guard`) lets repositories without a push remote keep local `.aidd` blueprints tracked, but blocks repositories with a push remote from publishing tracked or historical `.aidd` content.
+- `scripts/verify-build.ts` proves the built command runs its help and default dry-run paths from a working directory outside the repository.
+- A custom `scripts/require-bun.ts` preinstall guard replaces the third-party `only-allow bun` dependency.
+
+### Changed
+
+- The single 845-line `index.ts` entry point was split into seven private internal modules under `src/` (configuration, CLI parsing, filesystem safety, cleanup, targets, reporting, and orchestration) while preserving the safety pipeline and executable contract. The published package now includes `src/`.
+- `smoke:qc` now runs `lint` and verifies the built bundle from an external working directory.
+- The bundled agent-home list was tightened: the duplicate `codeium-windsurf` preset was collapsed into a single `windsurf` id, and private tooling references were removed from the docs, tests, and configuration so the public repository is self-contained.
+- Development dependency versions were advanced (`@types/node` to 26, plus prettier, eslint, typescript-eslint, and related plugins) to match the workspace TypeScript toolchain standard.
+
+### Fixed
+
+- The `brace-expansion` transitive dependency (pulled through `minimatch` by the ESLint toolchain) was updated to resolve advisory GHSA-mh99-v99m-4gvg. `bun audit` now reports zero vulnerabilities.
+
+### Security
+
+- All untrusted values printed to the console (target names, tool names, configured paths, resolved roots, artifact paths) are now escaped through a single formatter before output, preventing control characters in agent names from forging or altering terminal and captured-log text.
+
 ## [1.1.0] - 2026-07-16
 
 ### Added
