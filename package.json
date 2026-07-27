@@ -14,7 +14,8 @@
 		"CHANGELOG.md",
 		"README.md",
 		"config.json",
-		"index.ts"
+		"index.ts",
+		"src/"
 	],
 	"scripts": {
 		"start": "bun index.ts",
@@ -23,7 +24,7 @@
 		"build:verify": "bun ./dist/ai-cleaner.js --help && bun ./dist/ai-cleaner.js",
 		"format": "bunx prettier --write .",
 		"format:check": "bunx prettier --check .",
-		"lint": "eslint index.ts test --report-unused-disable-directives --max-warnings 0",
+		"lint": "eslint index.ts src test --report-unused-disable-directives --max-warnings 0",
 		"smoke:qc": "bun run format:check && bun run typecheck && bun test && bun run build",
 		"test": "bun test",
 		"typecheck": "tsc --noEmit",
