@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import type { CleanupTarget } from './config.ts';
 
 import { isRecord } from './config.ts';
-import { errorMessage } from './reporting.ts';
+import { errorMessage, formatLogValue } from './reporting.ts';
 
 export interface PlannedRoot {
 	configuredPath: string;
@@ -93,7 +93,7 @@ export const expandPath = (inputPath: string): string => {
 		const value = process.env[name];
 		if (value === undefined || value.length === 0) {
 			throw new Error(
-				`Path references unavailable environment variable ${name}: ${inputPath}`
+				`Path references unavailable environment variable ${name}: ${formatLogValue(inputPath)}`
 			);
 		}
 		return value;
@@ -132,12 +132,17 @@ const assertPathHasNoLinks = (candidatePath: string, label: string): void => {
 			if (code === 'ENOENT') {
 				return;
 			}
-			throw new Error(`Cannot inspect ${label} ${current}: ${errorMessage(err)}`, {
-				cause: err,
-			});
+			throw new Error(
+				`Cannot inspect ${label} ${formatLogValue(current)}: ${errorMessage(err)}`,
+				{
+					cause: err,
+				}
+			);
 		}
 		if (stats.isSymbolicLink()) {
-			throw new Error(`${label} traverses a symbolic link or junction: ${current}`);
+			throw new Error(
+				`${label} traverses a symbolic link or junction: ${formatLogValue(current)}`
+			);
 		}
 	}
 };
@@ -145,7 +150,9 @@ const assertPathHasNoLinks = (candidatePath: string, label: string): void => {
 export const planRoot = (configuredPath: string, label: string): PlannedRoot => {
 	const resolvedPath = expandPath(configuredPath);
 	if (isDangerousPath(resolvedPath)) {
-		throw new Error(`Refusing dangerous cleanup root for ${label}: ${resolvedPath}`);
+		throw new Error(
+			`Refusing dangerous cleanup root for ${label}: ${formatLogValue(resolvedPath)}`
+		);
 	}
 	assertPathHasNoLinks(resolvedPath, label);
 	let canonicalPath = resolvedPath;
@@ -154,16 +161,23 @@ export const planRoot = (configuredPath: string, label: string): PlannedRoot => 
 	} catch (err) {
 		const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
 		if (code !== 'ENOENT') {
-			throw new Error(`Cannot resolve ${label} ${resolvedPath}: ${errorMessage(err)}`, {
-				cause: err,
-			});
+			throw new Error(
+				`Cannot resolve ${label} ${formatLogValue(resolvedPath)}: ${errorMessage(err)}`,
+				{
+					cause: err,
+				}
+			);
 		}
 	}
 	if (isDangerousPath(canonicalPath)) {
-		throw new Error(`Refusing dangerous canonical root for ${label}: ${canonicalPath}`);
+		throw new Error(
+			`Refusing dangerous canonical root for ${label}: ${formatLogValue(canonicalPath)}`
+		);
 	}
 	if (normalizeForCompare(canonicalPath) !== normalizeForCompare(resolvedPath)) {
-		throw new Error(`${label} resolves through a symbolic link or junction: ${resolvedPath}`);
+		throw new Error(
+			`${label} resolves through a symbolic link or junction: ${formatLogValue(resolvedPath)}`
+		);
 	}
 	return { configuredPath, resolvedPath, canonicalPath, label };
 };
@@ -185,8 +199,8 @@ const assertNoOverlappingRoots = (roots: PlannedRoot[]): void => {
 			const secondPath = normalizeForCompare(second.canonicalPath);
 			if (isWithinOrEqual(firstPath, secondPath) || isWithinOrEqual(secondPath, firstPath)) {
 				throw new Error(
-					`Cleanup roots overlap (${first.label}: ${first.resolvedPath}; ` +
-						`${second.label}: ${second.resolvedPath}).`
+					`Cleanup roots overlap (${first.label}: ${formatLogValue(first.resolvedPath)}; ` +
+						`${second.label}: ${formatLogValue(second.resolvedPath)}).`
 				);
 			}
 		}
@@ -206,16 +220,18 @@ export const buildTargetPlan = (targets: CleanupTarget[]): PlannedTarget[] => {
 
 export const inspectProtectedSubtree = (artifactPath: string): string | undefined => {
 	if (isSensitivePath(artifactPath)) {
-		return `sensitive path ${artifactPath}`;
+		return `sensitive path ${formatLogValue(artifactPath)}`;
 	}
 	let stats: fs.Stats;
 	try {
 		stats = fs.lstatSync(artifactPath);
 	} catch (err) {
-		throw new Error(`Cannot inspect ${artifactPath}: ${errorMessage(err)}`, { cause: err });
+		throw new Error(`Cannot inspect ${formatLogValue(artifactPath)}: ${errorMessage(err)}`, {
+			cause: err,
+		});
 	}
 	if (stats.isSymbolicLink()) {
-		return `symbolic link or junction ${artifactPath}`;
+		return `symbolic link or junction ${formatLogValue(artifactPath)}`;
 	}
 	if (!stats.isDirectory()) {
 		return undefined;
@@ -224,7 +240,9 @@ export const inspectProtectedSubtree = (artifactPath: string): string | undefine
 	try {
 		entries = fs.readdirSync(artifactPath, { withFileTypes: true });
 	} catch (err) {
-		throw new Error(`Cannot read ${artifactPath}: ${errorMessage(err)}`, { cause: err });
+		throw new Error(`Cannot read ${formatLogValue(artifactPath)}: ${errorMessage(err)}`, {
+			cause: err,
+		});
 	}
 	for (const entry of entries) {
 		const protectedDescendant = inspectProtectedSubtree(path.join(artifactPath, entry.name));
@@ -239,14 +257,18 @@ export const revalidateContainment = (root: PlannedRoot, artifactPath: string): 
 	assertPathHasNoLinks(root.resolvedPath, root.label);
 	const currentRoot = fs.realpathSync.native(root.resolvedPath);
 	if (normalizeForCompare(currentRoot) !== normalizeForCompare(root.canonicalPath)) {
-		throw new Error(`Cleanup root changed after planning: ${root.resolvedPath}`);
+		throw new Error(
+			`Cleanup root changed after planning: ${formatLogValue(root.resolvedPath)}`
+		);
 	}
 	const artifactStats = fs.lstatSync(artifactPath);
 	if (artifactStats.isSymbolicLink()) {
-		throw new Error(`Artifact became a symbolic link or junction: ${artifactPath}`);
+		throw new Error(
+			`Artifact became a symbolic link or junction: ${formatLogValue(artifactPath)}`
+		);
 	}
 	const currentArtifact = fs.realpathSync.native(artifactPath);
 	if (!isWithinOrEqual(normalizeForCompare(currentArtifact), normalizeForCompare(currentRoot))) {
-		throw new Error(`Artifact escaped its cleanup root: ${artifactPath}`);
+		throw new Error(`Artifact escaped its cleanup root: ${formatLogValue(artifactPath)}`);
 	}
 };

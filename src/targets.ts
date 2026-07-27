@@ -5,7 +5,7 @@ import type { CleanupTarget, Config } from './config.ts';
 
 import { DEFAULT_RETENTION, isRecord } from './config.ts';
 import { expandPath, normalizeForCompare, planRoot } from './filesystem-safety.ts';
-import { errorMessage } from './reporting.ts';
+import { errorMessage, formatLogValue } from './reporting.ts';
 
 export const presetTargetsFromConfig = (config: Config): CleanupTarget[] => {
 	const presets = config.presets ?? {};
@@ -26,7 +26,7 @@ export const legacyTargetsFromConfig = (
 		} catch (err) {
 			const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
 			if (code === 'ENOENT') {
-				console.warn(`Target path does not exist: ${root.resolvedPath}`);
+				console.warn(`Target path does not exist: ${formatLogValue(root.resolvedPath)}`);
 				continue;
 			}
 			throw new Error(`Cannot read ${root.resolvedPath}: ${errorMessage(err)}`, {
@@ -40,7 +40,9 @@ export const legacyTargetsFromConfig = (
 			const subPath = path.join(targetPath, dirent.name);
 			const expandedSubPath = normalizeForCompare(expandPath(subPath));
 			if (explicitPaths.has(expandedSubPath)) {
-				console.log(`Skipping legacy entry already covered by explicit target: ${subPath}`);
+				console.log(
+					`Skipping legacy entry already covered by explicit target: ${formatLogValue(subPath)}`
+				);
 				continue;
 			}
 			targets.push({

@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import bundledConfig from '../config.json' with { type: 'json' };
-import { errorMessage } from './reporting.ts';
+import { errorMessage, formatLogValue } from './reporting.ts';
 
 export type ArtifactKind = 'directory' | 'file' | 'any';
 export type RiskLevel = 'normal' | 'aggressive';
@@ -55,7 +55,7 @@ const assertAllowedKeys = (
 	const allowed = new Set(allowedKeys);
 	const unknownKey = Object.keys(value).find((key) => !allowed.has(key));
 	if (unknownKey !== undefined) {
-		throw new Error(`${label} contains unknown field: ${unknownKey}.`);
+		throw new Error(`${label} contains unknown field: ${formatLogValue(unknownKey)}.`);
 	}
 };
 
@@ -182,7 +182,7 @@ export const parseConfig = (value: unknown): Config => {
 		overrides = {};
 		for (const [name, policy] of Object.entries(rawOverrides)) {
 			parseNonEmptyString(name, 'overrides key');
-			overrides[name] = parseRetentionPolicy(policy, `overrides.${name}`);
+			overrides[name] = parseRetentionPolicy(policy, `overrides.${formatLogValue(name)}`);
 		}
 	}
 
@@ -193,10 +193,10 @@ export const parseConfig = (value: unknown): Config => {
 		for (const [name, targets] of Object.entries(rawPresets)) {
 			parseNonEmptyString(name, 'presets key');
 			if (!Array.isArray(targets)) {
-				throw new Error(`presets.${name} must be an array of targets.`);
+				throw new Error(`presets.${formatLogValue(name)} must be an array of targets.`);
 			}
 			presets[name] = targets.map((target, index) =>
-				parseCleanupTarget(target, `presets.${name}[${index}]`)
+				parseCleanupTarget(target, `presets.${formatLogValue(name)}[${index}]`)
 			);
 		}
 	}
@@ -216,7 +216,7 @@ export const parseConfig = (value: unknown): Config => {
 	}
 	for (const presetName of usePresets ?? []) {
 		if (presets?.[presetName] === undefined) {
-			throw new Error(`usePresets references unknown preset: ${presetName}.`);
+			throw new Error(`usePresets references unknown preset: ${formatLogValue(presetName)}.`);
 		}
 	}
 
@@ -248,7 +248,7 @@ export const loadConfig = (configPath: string): Config => {
 	try {
 		raw = fs.readFileSync(fullPath, 'utf8');
 	} catch (err) {
-		throw new Error(`Failed to read config ${fullPath}: ${errorMessage(err)}`, {
+		throw new Error(`Failed to read config ${formatLogValue(fullPath)}: ${errorMessage(err)}`, {
 			cause: err,
 		});
 	}
@@ -256,7 +256,9 @@ export const loadConfig = (configPath: string): Config => {
 	try {
 		parsed = JSON.parse(raw) as unknown;
 	} catch (err) {
-		throw new Error(`Invalid JSON in ${fullPath}: ${errorMessage(err)}`, { cause: err });
+		throw new Error(`Invalid JSON in ${formatLogValue(fullPath)}: ${errorMessage(err)}`, {
+			cause: err,
+		});
 	}
 	return parseConfig(parsed);
 };

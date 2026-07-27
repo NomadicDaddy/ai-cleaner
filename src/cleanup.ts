@@ -6,7 +6,7 @@ import type { Artifact, PlannedRoot, PlannedTarget } from './filesystem-safety.t
 
 import { isRecord } from './config.ts';
 import { inspectProtectedSubtree, revalidateContainment } from './filesystem-safety.ts';
-import { errorMessage } from './reporting.ts';
+import { errorMessage, formatLogValue } from './reporting.ts';
 
 export interface ProcessResult {
 	matched: number;
@@ -29,11 +29,13 @@ export const listArtifacts = (
 		if (code === 'ENOENT') {
 			return { artifacts: [], failed: 0 };
 		}
-		console.error(`Cannot inspect ${root.resolvedPath}: ${errorMessage(err)}`);
+		console.error(`Cannot inspect ${formatLogValue(root.resolvedPath)}: ${errorMessage(err)}`);
 		return { artifacts: [], failed: 1 };
 	}
 	if (rootStats.isSymbolicLink()) {
-		console.error(`Refusing symbolic link or junction cleanup root: ${root.resolvedPath}`);
+		console.error(
+			`Refusing symbolic link or junction cleanup root: ${formatLogValue(root.resolvedPath)}`
+		);
 		return { artifacts: [], failed: 1 };
 	}
 	if (!rootStats.isDirectory()) {
@@ -50,7 +52,7 @@ export const listArtifacts = (
 	try {
 		entries = fs.readdirSync(root.resolvedPath, { withFileTypes: true });
 	} catch (err) {
-		console.error(`Cannot read ${root.resolvedPath}: ${errorMessage(err)}`);
+		console.error(`Cannot read ${formatLogValue(root.resolvedPath)}: ${errorMessage(err)}`);
 		return { artifacts: [], failed: 1 };
 	}
 
@@ -61,7 +63,9 @@ export const listArtifacts = (
 		try {
 			const stats = fs.lstatSync(artifactPath);
 			if (stats.isSymbolicLink()) {
-				console.error(`Refusing symbolic link or junction artifact: ${artifactPath}`);
+				console.error(
+					`Refusing symbolic link or junction artifact: ${formatLogValue(artifactPath)}`
+				);
 				failed++;
 				continue;
 			}
@@ -75,7 +79,7 @@ export const listArtifacts = (
 				artifacts.push(artifact);
 			}
 		} catch (err) {
-			console.error(`Cannot inspect ${artifactPath}: ${errorMessage(err)}`);
+			console.error(`Cannot inspect ${formatLogValue(artifactPath)}: ${errorMessage(err)}`);
 			failed++;
 		}
 	}
@@ -107,29 +111,33 @@ export const processTarget = (
 	const result: ProcessResult = { matched: 0, skipped: 0, failed: 0 };
 
 	if (target.enabled === false) {
-		console.log(`\nSkipping disabled target: ${target.tool} / ${target.name}`);
+		console.log(
+			`\nSkipping disabled target: ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}`
+		);
 		result.skipped++;
 		return result;
 	}
 	if (target.risk === 'aggressive' && !aggressive) {
-		console.log(`\nSkipping aggressive target: ${target.tool} / ${target.name}`);
+		console.log(
+			`\nSkipping aggressive target: ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}`
+		);
 		result.skipped++;
 		return result;
 	}
 
-	console.log(`\nAnalyzing ${target.tool} / ${target.name}...`);
+	console.log(`\nAnalyzing ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}...`);
 	console.log(`Policy: ${JSON.stringify(policy)}`);
 
 	for (const root of roots) {
 		const scan = listArtifacts(root, kind);
 		result.failed += scan.failed;
 		if (scan.artifacts.length === 0) {
-			console.log(`No matching artifacts under: ${root.resolvedPath}`);
+			console.log(`No matching artifacts under: ${formatLogValue(root.resolvedPath)}`);
 			continue;
 		}
 		const toDelete = selectArtifactsToDelete(scan.artifacts, policy);
 		if (toDelete.length === 0) {
-			console.log(`No artifacts to clean under: ${root.resolvedPath}`);
+			console.log(`No artifacts to clean under: ${formatLogValue(root.resolvedPath)}`);
 			continue;
 		}
 
@@ -141,17 +149,17 @@ export const processTarget = (
 					throw new Error(`contains protected ${protectedEntry}`);
 				}
 				if (!apply) {
-					console.log(`[DRY RUN] Would delete: ${artifact.path}`);
+					console.log(`[DRY RUN] Would delete: ${formatLogValue(artifact.path)}`);
 					result.matched++;
 					continue;
 				}
 				revalidateContainment(root, artifact.path);
-				console.log(`Deleting: ${artifact.path}`);
+				console.log(`Deleting: ${formatLogValue(artifact.path)}`);
 				fs.rmSync(artifact.path, { recursive: true, force: false });
 				result.matched++;
 			} catch (err) {
 				console.error(
-					`Refusing or failing to delete ${artifact.path}: ${errorMessage(err)}`
+					`Refusing or failing to delete ${formatLogValue(artifact.path)}: ${errorMessage(err)}`
 				);
 				result.failed++;
 			}
