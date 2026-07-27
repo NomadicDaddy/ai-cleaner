@@ -12,6 +12,7 @@
 	},
 	"files": [
 		"CHANGELOG.md",
+		"LICENSE",
 		"README.md",
 		"config.json",
 		"index.ts",
