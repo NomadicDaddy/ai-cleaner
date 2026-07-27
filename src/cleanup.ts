@@ -1,11 +1,21 @@
-import * as fs from 'node:fs';
+import type * as fs from 'node:fs';
+
 import * as path from 'node:path';
 
 import type { ArtifactKind, RetentionPolicy } from './config.ts';
-import type { Artifact, PlannedRoot, PlannedTarget } from './filesystem-safety.ts';
+import type {
+	Artifact,
+	FilesystemAdapter,
+	PlannedRoot,
+	PlannedTarget,
+} from './filesystem-safety.ts';
 
 import { isRecord } from './config.ts';
-import { inspectProtectedSubtree, revalidateContainment } from './filesystem-safety.ts';
+import {
+	defaultFilesystemAdapter,
+	inspectProtectedSubtree,
+	revalidateContainment,
+} from './filesystem-safety.ts';
 import { errorMessage, formatLogValue } from './reporting.ts';
 
 export interface ProcessResult {
@@ -19,11 +29,12 @@ const matchesKind = (artifact: Artifact, kind: ArtifactKind): boolean =>
 
 export const listArtifacts = (
 	root: PlannedRoot,
-	kind: ArtifactKind
+	kind: ArtifactKind,
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
 ): { artifacts: Artifact[]; failed: number } => {
 	let rootStats: fs.Stats;
 	try {
-		rootStats = fs.lstatSync(root.resolvedPath);
+		rootStats = fsAdapter.lstatSync(root.resolvedPath);
 	} catch (err) {
 		const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
 		if (code === 'ENOENT') {
@@ -50,7 +61,7 @@ export const listArtifacts = (
 
 	let entries: fs.Dirent[];
 	try {
-		entries = fs.readdirSync(root.resolvedPath, { withFileTypes: true });
+		entries = fsAdapter.readdirSync(root.resolvedPath);
 	} catch (err) {
 		console.error(`Cannot read ${formatLogValue(root.resolvedPath)}: ${errorMessage(err)}`);
 		return { artifacts: [], failed: 1 };
@@ -61,7 +72,7 @@ export const listArtifacts = (
 	for (const dirent of entries) {
 		const artifactPath = path.join(root.resolvedPath, dirent.name);
 		try {
-			const stats = fs.lstatSync(artifactPath);
+			const stats = fsAdapter.lstatSync(artifactPath);
 			if (stats.isSymbolicLink()) {
 				console.error(
 					`Refusing symbolic link or junction artifact: ${formatLogValue(artifactPath)}`
@@ -103,7 +114,8 @@ export const processTarget = (
 	plannedTarget: PlannedTarget,
 	defaultRetention: RetentionPolicy,
 	apply: boolean,
-	aggressive: boolean
+	aggressive: boolean,
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
 ): ProcessResult => {
 	const { target, roots } = plannedTarget;
 	const policy = target.retention ?? defaultRetention;
@@ -129,7 +141,7 @@ export const processTarget = (
 	console.log(`Policy: ${JSON.stringify(policy)}`);
 
 	for (const root of roots) {
-		const scan = listArtifacts(root, kind);
+		const scan = listArtifacts(root, kind, fsAdapter);
 		result.failed += scan.failed;
 		if (scan.artifacts.length === 0) {
 			console.log(`No matching artifacts under: ${formatLogValue(root.resolvedPath)}`);
@@ -143,8 +155,8 @@ export const processTarget = (
 
 		for (const artifact of toDelete) {
 			try {
-				revalidateContainment(root, artifact.path);
-				const protectedEntry = inspectProtectedSubtree(artifact.path);
+				revalidateContainment(root, artifact.path, fsAdapter);
+				const protectedEntry = inspectProtectedSubtree(artifact.path, fsAdapter);
 				if (protectedEntry !== undefined) {
 					throw new Error(`contains protected ${protectedEntry}`);
 				}
@@ -153,9 +165,9 @@ export const processTarget = (
 					result.matched++;
 					continue;
 				}
-				revalidateContainment(root, artifact.path);
+				revalidateContainment(root, artifact.path, fsAdapter);
 				console.log(`Deleting: ${formatLogValue(artifact.path)}`);
-				fs.rmSync(artifact.path, { recursive: true, force: false });
+				fsAdapter.rmSync(artifact.path, { force: false, recursive: true });
 				result.matched++;
 			} catch (err) {
 				console.error(

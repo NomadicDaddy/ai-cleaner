@@ -1,13 +1,19 @@
 import type { ProcessResult } from './cleanup.ts';
 import type { Config } from './config.ts';
+import type { FilesystemAdapter } from './filesystem-safety.ts';
 
 import { processTarget } from './cleanup.ts';
 import { CliError, HELP_TEXT, parseArgs } from './cli.ts';
 import { DEFAULT_RETENTION, loadBundledConfig, loadConfig } from './config.ts';
-import { buildTargetPlan, expandPath, normalizeForCompare } from './filesystem-safety.ts';
+import {
+	buildTargetPlan,
+	defaultFilesystemAdapter,
+	expandPath,
+	normalizeForCompare,
+} from './filesystem-safety.ts';
 import { legacyTargetsFromConfig, presetTargetsFromConfig } from './targets.ts';
 
-export const run = (): number => {
+export const run = (fsAdapter: FilesystemAdapter = defaultFilesystemAdapter): number => {
 	const options = parseArgs();
 	if (options.help) {
 		console.log(HELP_TEXT);
@@ -44,14 +50,15 @@ export const run = (): number => {
 		console.log('No cleanup targets configured.');
 		return 0;
 	}
-	const plan = buildTargetPlan(targets);
+	const plan = buildTargetPlan(targets, fsAdapter);
 	const totals: ProcessResult = { matched: 0, skipped: 0, failed: 0 };
 	for (const target of plan) {
 		const result = processTarget(
 			target,
 			config.defaultRetention ?? DEFAULT_RETENTION,
 			options.apply,
-			aggressive
+			aggressive,
+			fsAdapter
 		);
 		totals.matched += result.matched;
 		totals.skipped += result.skipped;

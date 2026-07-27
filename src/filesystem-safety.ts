@@ -26,6 +26,26 @@ export interface Artifact {
 	isFile: boolean;
 }
 
+/**
+ * Internal filesystem adapter that wraps every blocking filesystem call used by
+ * the safety pipeline. Threading this through run.ts lets the release-
+ * verification test inject lstat, readdir, realpath, and rm failures and swap
+ * artifacts between containment checks without touching the real filesystem.
+ */
+export interface FilesystemAdapter {
+	lstatSync: (path: string) => fs.Stats;
+	readdirSync: (path: string) => fs.Dirent[];
+	realpathSync: (path: string) => string;
+	rmSync: (path: string, options: { force: boolean; recursive: boolean }) => void;
+}
+
+export const defaultFilesystemAdapter: FilesystemAdapter = {
+	lstatSync: (p) => fs.lstatSync(p),
+	readdirSync: (p) => fs.readdirSync(p, { withFileTypes: true }),
+	realpathSync: (p) => fs.realpathSync.native(p),
+	rmSync: (p, options) => fs.rmSync(p, options),
+};
+
 export const normalizeForCompare = (candidatePath: string): string => {
 	const resolved = path.resolve(candidatePath);
 	return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
@@ -117,7 +137,11 @@ const isSensitivePath = (candidatePath: string): boolean => {
 	return SENSITIVE_NAME_PATTERNS.some((pattern) => pattern.test(normalized));
 };
 
-const assertPathHasNoLinks = (candidatePath: string, label: string): void => {
+const assertPathHasNoLinks = (
+	candidatePath: string,
+	label: string,
+	fsAdapter: FilesystemAdapter
+): void => {
 	const resolved = path.resolve(candidatePath);
 	const root = path.parse(resolved).root;
 	const segments = resolved.slice(root.length).split(path.sep).filter(Boolean);
@@ -126,7 +150,7 @@ const assertPathHasNoLinks = (candidatePath: string, label: string): void => {
 		current = path.join(current, segment);
 		let stats: fs.Stats;
 		try {
-			stats = fs.lstatSync(current);
+			stats = fsAdapter.lstatSync(current);
 		} catch (err) {
 			const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
 			if (code === 'ENOENT') {
@@ -147,17 +171,21 @@ const assertPathHasNoLinks = (candidatePath: string, label: string): void => {
 	}
 };
 
-export const planRoot = (configuredPath: string, label: string): PlannedRoot => {
+export const planRoot = (
+	configuredPath: string,
+	label: string,
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
+): PlannedRoot => {
 	const resolvedPath = expandPath(configuredPath);
 	if (isDangerousPath(resolvedPath)) {
 		throw new Error(
 			`Refusing dangerous cleanup root for ${label}: ${formatLogValue(resolvedPath)}`
 		);
 	}
-	assertPathHasNoLinks(resolvedPath, label);
+	assertPathHasNoLinks(resolvedPath, label, fsAdapter);
 	let canonicalPath = resolvedPath;
 	try {
-		canonicalPath = fs.realpathSync.native(resolvedPath);
+		canonicalPath = fsAdapter.realpathSync(resolvedPath);
 	} catch (err) {
 		const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
 		if (code !== 'ENOENT') {
@@ -207,24 +235,30 @@ const assertNoOverlappingRoots = (roots: PlannedRoot[]): void => {
 	}
 };
 
-export const buildTargetPlan = (targets: CleanupTarget[]): PlannedTarget[] => {
+export const buildTargetPlan = (
+	targets: CleanupTarget[],
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
+): PlannedTarget[] => {
 	const plannedTargets = targets.map((target, targetIndex) => ({
 		target,
 		roots: target.paths.map((configuredPath, pathIndex) =>
-			planRoot(configuredPath, `targets[${targetIndex}].paths[${pathIndex}]`)
+			planRoot(configuredPath, `targets[${targetIndex}].paths[${pathIndex}]`, fsAdapter)
 		),
 	}));
 	assertNoOverlappingRoots(plannedTargets.flatMap((target) => target.roots));
 	return plannedTargets;
 };
 
-export const inspectProtectedSubtree = (artifactPath: string): string | undefined => {
+export const inspectProtectedSubtree = (
+	artifactPath: string,
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
+): string | undefined => {
 	if (isSensitivePath(artifactPath)) {
 		return `sensitive path ${formatLogValue(artifactPath)}`;
 	}
 	let stats: fs.Stats;
 	try {
-		stats = fs.lstatSync(artifactPath);
+		stats = fsAdapter.lstatSync(artifactPath);
 	} catch (err) {
 		throw new Error(`Cannot inspect ${formatLogValue(artifactPath)}: ${errorMessage(err)}`, {
 			cause: err,
@@ -238,14 +272,17 @@ export const inspectProtectedSubtree = (artifactPath: string): string | undefine
 	}
 	let entries: fs.Dirent[];
 	try {
-		entries = fs.readdirSync(artifactPath, { withFileTypes: true });
+		entries = fsAdapter.readdirSync(artifactPath);
 	} catch (err) {
 		throw new Error(`Cannot read ${formatLogValue(artifactPath)}: ${errorMessage(err)}`, {
 			cause: err,
 		});
 	}
 	for (const entry of entries) {
-		const protectedDescendant = inspectProtectedSubtree(path.join(artifactPath, entry.name));
+		const protectedDescendant = inspectProtectedSubtree(
+			path.join(artifactPath, entry.name),
+			fsAdapter
+		);
 		if (protectedDescendant !== undefined) {
 			return protectedDescendant;
 		}
@@ -253,21 +290,25 @@ export const inspectProtectedSubtree = (artifactPath: string): string | undefine
 	return undefined;
 };
 
-export const revalidateContainment = (root: PlannedRoot, artifactPath: string): void => {
-	assertPathHasNoLinks(root.resolvedPath, root.label);
-	const currentRoot = fs.realpathSync.native(root.resolvedPath);
+export const revalidateContainment = (
+	root: PlannedRoot,
+	artifactPath: string,
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
+): void => {
+	assertPathHasNoLinks(root.resolvedPath, root.label, fsAdapter);
+	const currentRoot = fsAdapter.realpathSync(root.resolvedPath);
 	if (normalizeForCompare(currentRoot) !== normalizeForCompare(root.canonicalPath)) {
 		throw new Error(
 			`Cleanup root changed after planning: ${formatLogValue(root.resolvedPath)}`
 		);
 	}
-	const artifactStats = fs.lstatSync(artifactPath);
+	const artifactStats = fsAdapter.lstatSync(artifactPath);
 	if (artifactStats.isSymbolicLink()) {
 		throw new Error(
 			`Artifact became a symbolic link or junction: ${formatLogValue(artifactPath)}`
 		);
 	}
-	const currentArtifact = fs.realpathSync.native(artifactPath);
+	const currentArtifact = fsAdapter.realpathSync(artifactPath);
 	if (!isWithinOrEqual(normalizeForCompare(currentArtifact), normalizeForCompare(currentRoot))) {
 		throw new Error(`Artifact escaped its cleanup root: ${formatLogValue(artifactPath)}`);
 	}
