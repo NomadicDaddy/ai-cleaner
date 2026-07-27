@@ -158,14 +158,15 @@ failure and a nonzero exit.
 
 ```sh
 bun run format
+bun run lint
 bun run typecheck
 bun test
 bun run build
 bun run smoke:qc
 ```
 
-`smoke:qc` checks formatting and types, runs the isolated filesystem suite, and builds the Bun
-bundle.
+`smoke:qc` checks formatting, lint, and types, runs all Bun test suites, then builds the bundle and
+executes it from a temporary working directory outside the repository.
 
 The pre-push hook also protects local AIDD metadata. Repositories without a push remote can keep
 their `.aidd` blueprint tracked locally. If a push remote is configured, the hook refuses tracked
