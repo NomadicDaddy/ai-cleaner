@@ -42,9 +42,47 @@ export const writeConfig = (root: string, targets: TestTarget[]): string => {
 	return configPath;
 };
 
-export const runCli = async (args: string[], cwd = repositoryRoot): Promise<CliResult> => {
-	const processHandle = Bun.spawn([process.execPath, entrypoint, ...args], {
-		cwd,
+export type RunCliEnv = Record<string, string | undefined>;
+
+export interface RunCliOptions {
+	cwd?: string;
+	env?: RunCliEnv;
+}
+
+const resolveRunCliOptions = (cwdOrOptions: string | RunCliOptions): RunCliOptions => {
+	if (typeof cwdOrOptions === 'string') {
+		return { cwd: cwdOrOptions };
+	}
+	return {
+		cwd: cwdOrOptions.cwd ?? repositoryRoot,
+		...(cwdOrOptions.env !== undefined ? { env: cwdOrOptions.env } : {}),
+	};
+};
+
+const buildSpawnEnv = (overrides?: RunCliEnv): NodeJS.ProcessEnv | undefined => {
+	if (overrides === undefined) {
+		return undefined;
+	}
+	const env: NodeJS.ProcessEnv = { ...process.env };
+	for (const [key, value] of Object.entries(overrides)) {
+		if (value === undefined) {
+			delete env[key];
+		} else {
+			env[key] = value;
+		}
+	}
+	return env;
+};
+
+export const runCli = async (
+	args: string[],
+	cwdOrOptions: string | RunCliOptions = repositoryRoot
+): Promise<CliResult> => {
+	const options = resolveRunCliOptions(cwdOrOptions);
+	const spawnEnv = buildSpawnEnv(options.env);
+	const processHandle = Bun.spawn([process.execPath, '--no-env-file', entrypoint, ...args], {
+		cwd: options.cwd ?? repositoryRoot,
+		...(spawnEnv !== undefined ? { env: spawnEnv } : {}),
 		stderr: 'pipe',
 		stdout: 'pipe',
 	});

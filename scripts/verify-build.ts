@@ -24,7 +24,7 @@ const runBundle = async (args: string[], cwd: string): Promise<RunResult> => {
 			`dist/ai-cleaner.js does not exist. Run "bun run build:bundle" before verification.`
 		);
 	}
-	const handle = Bun.spawn([process.execPath, bundlePath, ...args], {
+	const handle = Bun.spawn([process.execPath, '--no-env-file', bundlePath, ...args], {
 		cwd,
 		stderr: 'pipe',
 		stdout: 'pipe',

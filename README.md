@@ -153,6 +153,9 @@ failure and a nonzero exit.
 - A selected directory is skipped if any descendant is a link or has a sensitive name such as
   `.env`, `.git`, `.ssh`, `credentials`, `settings`, `skills`, `agents`, `plugins`, or `memories`.
 - Safety refusals and deletion failures produce a nonzero exit code.
+- Path expansion (`~`, `%VAR%`, `$VAR`) uses the process environment only. Bun automatic `.env`
+  loading is disabled (`bunfig.toml` `env = false` and every launch path passes `--no-env-file`),
+  so a working-directory `.env` cannot silently redirect configured cleanup roots.
 
 ## Development
 
@@ -167,7 +170,12 @@ bun run smoke:qc
 
 `smoke:qc` checks formatting, lint, and types, runs all Bun test suites, then builds the bundle,
 verifies the bundle from a temporary working directory outside the repository, and verifies the
-packed package tarball (contents plus external-cwd help/dry-run) that users actually receive.
+packed package tarball (contents, external-cwd help/dry-run, and cwd-`.env` isolation) that users
+actually receive.
+
+Repository and installed launches use `bun --no-env-file` (shebang, `bun run start`, test harness,
+and delivery verifiers) so packed or linked executables keep the same dotenv policy outside the
+checkout.
 
 The pre-push hook protects local AIDD metadata. Repositories without a push remote can keep
 their `.aidd` blueprint tracked locally. If a push remote is configured, the hook refuses tracked

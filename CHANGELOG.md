@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Disabled Bun automatic `.env` loading so a working-directory dotenv file cannot redirect
+  configured `$VAR` / `%VAR%` cleanup roots. Added root `bunfig.toml` with `env = false`, and
+  pass `--no-env-file` on the executable shebang, `package.json` `start` script, CLI test
+  fixture spawns, and package/bundle delivery verifiers. External-cwd tests and packed-package
+  verification prove dotenv is ignored while an explicit OS environment value still expands
+  (feature `audit-tech-stack-1785207357-bun-dotenv-auto-loading-can-redirect-cleanup-roots`).
 - `keepDays: 0` now requires `allowEmpty: true`, matching `keepCount: 0`. Without confirmation,
   config parsing fails closed before any artifact is selected; with confirmation, dry-run remains
   the default. Docs and assertions state both full-deletion forms. Regression coverage in

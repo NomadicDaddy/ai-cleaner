@@ -308,6 +308,40 @@ describe('unavailable environment variables', () => {
 	});
 });
 
+describe('dotenv isolation', () => {
+	test('ignores cwd .env while expanding an explicit OS environment value', async () => {
+		const root = createTemporaryRoot();
+		const poisonRoot = path.join(root, 'poison-from-dotenv');
+		const realRoot = path.join(root, 'real-os-root');
+		fs.mkdirSync(poisonRoot);
+		fs.mkdirSync(realRoot);
+		const keepArtifact = path.join(realRoot, 'keep.log');
+		fs.writeFileSync(keepArtifact, 'keep');
+		fs.writeFileSync(path.join(root, '.env'), `AI_CLEANER_DOTENV_ROOT=${poisonRoot}\n`);
+
+		const configPath = writeConfig(root, [
+			targetFor(`$AI_CLEANER_DOTENV_ROOT`, { retention: { keepCount: 5 } }),
+		]);
+
+		const ignored = await runCli(['--config', configPath], {
+			cwd: root,
+			env: { AI_CLEANER_DOTENV_ROOT: undefined },
+		});
+		expect(ignored.exitCode).toBe(1);
+		expect(ignored.stderr).toContain('unavailable environment variable');
+		expect(ignored.stderr).toContain('AI_CLEANER_DOTENV_ROOT');
+
+		const expanded = await runCli(['--config', configPath], {
+			cwd: root,
+			env: { AI_CLEANER_DOTENV_ROOT: realRoot },
+		});
+		expect(expanded.exitCode).toBe(0);
+		expect(expanded.stdout).toContain('DRY RUN MODE ENABLED');
+		expect(expanded.stdout).not.toContain(poisonRoot);
+		expect(fs.existsSync(keepArtifact)).toBeTrue();
+	});
+});
+
 describe('file-kind filtering', () => {
 	test('file kind deletes old files but preserves directories', async () => {
 		const root = createTemporaryRoot();

@@ -1,0 +1,4 @@
+# Disable automatic .env file loading.
+# Cleanup roots expand only from the process environment (OS / scheduler).
+# A working-directory .env must not silently redirect configured $VAR paths.
+env = false

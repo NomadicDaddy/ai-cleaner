@@ -19,7 +19,7 @@
 		"src/"
 	],
 	"scripts": {
-		"start": "bun index.ts",
+		"start": "bun --no-env-file index.ts",
 		"build": "bun run build:bundle && bun run build:verify && bun run build:verify-package",
 		"build:bundle": "bun build ./index.ts --target=bun --outfile ./dist/ai-cleaner.js",
 		"build:verify": "bun ./scripts/verify-build.ts",
