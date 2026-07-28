@@ -9,7 +9,7 @@ import type { Artifact, PlannedRoot, PlannedTarget } from './filesystem-safety.t
 import { isRecord } from './config.ts';
 import { defaultFilesystemAdapter } from './filesystem-adapter.ts';
 import { inspectProtectedSubtree, revalidateContainment } from './filesystem-safety.ts';
-import { errorMessage, formatLogValue } from './reporting.ts';
+import { formatErrorMessage, formatLogValue } from './reporting.ts';
 
 export interface ProcessResult {
 	matched: number;
@@ -57,7 +57,9 @@ const lstatRoot = (root: PlannedRoot, fsAdapter: FilesystemAdapter): fs.Stats | 
 		if (code === 'ENOENT') {
 			return { status: 'missing' };
 		}
-		console.error(`Cannot inspect ${formatLogValue(root.resolvedPath)}: ${errorMessage(err)}`);
+		console.error(
+			`Cannot inspect ${formatLogValue(root.resolvedPath)}: ${formatErrorMessage(err)}`
+		);
 		return { status: 'failed' };
 	}
 };
@@ -102,7 +104,7 @@ const classifyDirectoryEntry = (
 		};
 		return matchesKind(artifact, kind) ? { artifact, failed: false } : { failed: false };
 	} catch (err) {
-		console.error(`Cannot inspect ${formatLogValue(artifactPath)}: ${errorMessage(err)}`);
+		console.error(`Cannot inspect ${formatLogValue(artifactPath)}: ${formatErrorMessage(err)}`);
 		return { failed: true };
 	}
 };
@@ -116,7 +118,9 @@ const collectDirectoryArtifacts = (
 	try {
 		entries = fsAdapter.readdirSync(root.resolvedPath);
 	} catch (err) {
-		console.error(`Cannot read ${formatLogValue(root.resolvedPath)}: ${errorMessage(err)}`);
+		console.error(
+			`Cannot read ${formatLogValue(root.resolvedPath)}: ${formatErrorMessage(err)}`
+		);
 		return { artifacts: [], failed: 1 };
 	}
 	const artifacts: Artifact[] = [];
@@ -187,7 +191,7 @@ const processArtifact = (
 		result.matched++;
 	} catch (err) {
 		console.error(
-			`Refusing or failing to delete ${formatLogValue(artifact.path)}: ${errorMessage(err)}`
+			`Refusing or failing to delete ${formatLogValue(artifact.path)}: ${formatErrorMessage(err)}`
 		);
 		result.failed++;
 	}

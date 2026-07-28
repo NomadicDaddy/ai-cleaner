@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import bundledConfig from '../config.json' with { type: 'json' };
-import { errorMessage, formatLogValue } from './reporting.ts';
+import { errorMessage } from './reporting.ts';
 
 export type ArtifactKind = 'directory' | 'file' | 'any';
 type RiskLevel = 'normal' | 'aggressive';
@@ -62,7 +62,8 @@ const assertAllowedKeys = (
 	const allowed = new Set(allowedKeys);
 	const unknownKey = Object.keys(value).find((key) => !allowed.has(key));
 	if (unknownKey !== undefined) {
-		throw new Error(`${label} contains unknown field: ${formatLogValue(unknownKey)}.`);
+		// Untrusted key stays raw; formatErrorMessage at stderr emission encodes it once.
+		throw new Error(`${label} contains unknown field: ${unknownKey}.`);
 	}
 };
 
@@ -191,7 +192,8 @@ const parseOverrides = (value: unknown): Record<string, RetentionPolicy> => {
 	const overrides: Record<string, RetentionPolicy> = {};
 	for (const [name, policy] of Object.entries(raw)) {
 		parseNonEmptyString(name, 'overrides key');
-		overrides[name] = parseRetentionPolicy(policy, `overrides.${formatLogValue(name)}`);
+		// Labels stay raw; formatErrorMessage at stderr emission encodes them once.
+		overrides[name] = parseRetentionPolicy(policy, `overrides.${name}`);
 	}
 	return overrides;
 };
@@ -202,10 +204,10 @@ const parsePresets = (value: unknown): Record<string, CleanupTarget[]> => {
 	for (const [name, targets] of Object.entries(raw)) {
 		parseNonEmptyString(name, 'presets key');
 		if (!Array.isArray(targets)) {
-			throw new Error(`presets.${formatLogValue(name)} must be an array of targets.`);
+			throw new Error(`presets.${name} must be an array of targets.`);
 		}
 		presets[name] = targets.map((target, index) =>
-			parseCleanupTarget(target, `presets.${formatLogValue(name)}[${index}]`)
+			parseCleanupTarget(target, `presets.${name}[${index}]`)
 		);
 	}
 	return presets;
@@ -222,7 +224,7 @@ const validateUsePresetRefs = (
 ): void => {
 	for (const presetName of usePresets) {
 		if (presets?.[presetName] === undefined) {
-			throw new Error(`usePresets references unknown preset: ${formatLogValue(presetName)}.`);
+			throw new Error(`usePresets references unknown preset: ${presetName}.`);
 		}
 	}
 };
@@ -282,7 +284,8 @@ export const loadConfig = (configPath: string): Config => {
 	try {
 		raw = fs.readFileSync(fullPath, 'utf8');
 	} catch (err) {
-		throw new Error(`Failed to read config ${formatLogValue(fullPath)}: ${errorMessage(err)}`, {
+		// Path and nested message stay raw so formatErrorMessage at emission encodes once.
+		throw new Error(`Failed to read config ${fullPath}: ${errorMessage(err)}`, {
 			cause: err,
 		});
 	}
@@ -290,7 +293,7 @@ export const loadConfig = (configPath: string): Config => {
 	try {
 		parsed = JSON.parse(raw) as unknown;
 	} catch (err) {
-		throw new Error(`Invalid JSON in ${formatLogValue(fullPath)}: ${errorMessage(err)}`, {
+		throw new Error(`Invalid JSON in ${fullPath}: ${errorMessage(err)}`, {
 			cause: err,
 		});
 	}

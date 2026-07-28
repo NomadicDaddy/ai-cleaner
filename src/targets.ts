@@ -22,6 +22,8 @@ const readLegacyRootEntries = (rootPath: string): fs.Dirent[] | undefined => {
 			console.warn(`Target path does not exist: ${formatLogValue(rootPath)}`);
 			return undefined;
 		}
+		// Path stays raw here; formatErrorMessage at the stderr emission boundary
+		// (index.ts) applies formatLogValue once to the full diagnostic.
 		throw new Error(`Cannot read ${rootPath}: ${errorMessage(err)}`, {
 			cause: err,
 		});

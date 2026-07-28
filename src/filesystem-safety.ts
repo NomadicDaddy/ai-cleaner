@@ -9,7 +9,7 @@ import type { FilesystemAdapter } from './filesystem-adapter.ts';
 import { isRecord } from './config.ts';
 import { isDangerousRootPath } from './dangerous-roots.ts';
 import { defaultFilesystemAdapter } from './filesystem-adapter.ts';
-import { errorMessage, formatLogValue } from './reporting.ts';
+import { errorMessage } from './reporting.ts';
 
 export interface PlannedRoot {
 	configuredPath: string;
@@ -45,8 +45,9 @@ export const expandPath = (inputPath: string): string => {
 	const resolveEnvironmentVariable = (_match: string, name: string): string => {
 		const value = process.env[name];
 		if (value === undefined || value.length === 0) {
+			// Untrusted path stays raw; formatErrorMessage at emission encodes it once.
 			throw new Error(
-				`Path references unavailable environment variable ${name}: ${formatLogValue(inputPath)}`
+				`Path references unavailable environment variable ${name}: ${inputPath}`
 			);
 		}
 		return value;
@@ -89,17 +90,12 @@ const assertPathHasNoLinks = (
 			if (code === 'ENOENT') {
 				return;
 			}
-			throw new Error(
-				`Cannot inspect ${label} ${formatLogValue(current)}: ${errorMessage(err)}`,
-				{
-					cause: err,
-				}
-			);
+			throw new Error(`Cannot inspect ${label} ${current}: ${errorMessage(err)}`, {
+				cause: err,
+			});
 		}
 		if (stats.isSymbolicLink()) {
-			throw new Error(
-				`${label} traverses a symbolic link or junction: ${formatLogValue(current)}`
-			);
+			throw new Error(`${label} traverses a symbolic link or junction: ${current}`);
 		}
 	}
 };
@@ -114,9 +110,7 @@ const isWithinOrEqual = (candidatePath: string, rootPath: string): boolean => {
 
 const assertNotDangerousRoot = (candidatePath: string, label: string, kind: string): void => {
 	if (isDangerousRootPath(candidatePath)) {
-		throw new Error(
-			`Refusing dangerous ${kind} root for ${label}: ${formatLogValue(candidatePath)}`
-		);
+		throw new Error(`Refusing dangerous ${kind} root for ${label}: ${candidatePath}`);
 	}
 };
 
@@ -130,10 +124,9 @@ const resolveCanonicalPath = (
 	} catch (err) {
 		const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
 		if (code === 'ENOENT') return resolvedPath;
-		throw new Error(
-			`Cannot resolve ${label} ${formatLogValue(resolvedPath)}: ${errorMessage(err)}`,
-			{ cause: err }
-		);
+		throw new Error(`Cannot resolve ${label} ${resolvedPath}: ${errorMessage(err)}`, {
+			cause: err,
+		});
 	}
 };
 
@@ -151,20 +144,15 @@ const assertExistingRootIsDirectory = (
 		if (code === 'ENOENT') {
 			return;
 		}
-		throw new Error(
-			`Cannot inspect ${label} ${formatLogValue(candidatePath)}: ${errorMessage(err)}`,
-			{ cause: err }
-		);
+		throw new Error(`Cannot inspect ${label} ${candidatePath}: ${errorMessage(err)}`, {
+			cause: err,
+		});
 	}
 	if (stats.isSymbolicLink()) {
-		throw new Error(
-			`Refusing symbolic link or junction cleanup root: ${formatLogValue(candidatePath)}`
-		);
+		throw new Error(`Refusing symbolic link or junction cleanup root: ${candidatePath}`);
 	}
 	if (!stats.isDirectory()) {
-		throw new Error(
-			`Cleanup root for ${label} is not a directory: ${formatLogValue(candidatePath)}`
-		);
+		throw new Error(`Cleanup root for ${label} is not a directory: ${candidatePath}`);
 	}
 };
 
@@ -179,9 +167,7 @@ export const planRoot = (
 	const canonicalPath = resolveCanonicalPath(resolvedPath, label, fsAdapter);
 	assertNotDangerousRoot(canonicalPath, label, 'canonical');
 	if (normalizeForCompare(canonicalPath) !== normalizeForCompare(resolvedPath)) {
-		throw new Error(
-			`${label} resolves through a symbolic link or junction: ${formatLogValue(resolvedPath)}`
-		);
+		throw new Error(`${label} resolves through a symbolic link or junction: ${resolvedPath}`);
 	}
 	assertExistingRootIsDirectory(resolvedPath, label, fsAdapter);
 	return { configuredPath, resolvedPath, canonicalPath, label };
@@ -195,8 +181,8 @@ const assertNoOverlappingRoots = (roots: PlannedRoot[]): void => {
 			const secondPath = normalizeForCompare(second.canonicalPath);
 			if (isWithinOrEqual(firstPath, secondPath) || isWithinOrEqual(secondPath, firstPath)) {
 				throw new Error(
-					`Cleanup roots overlap (${first.label}: ${formatLogValue(first.resolvedPath)}; ` +
-						`${second.label}: ${formatLogValue(second.resolvedPath)}).`
+					`Cleanup roots overlap (${first.label}: ${first.resolvedPath}; ` +
+						`${second.label}: ${second.resolvedPath}).`
 				);
 			}
 		}
@@ -221,7 +207,7 @@ const lstatOrThrow = (candidatePath: string, fsAdapter: FilesystemAdapter): fs.S
 	try {
 		return fsAdapter.lstatSync(candidatePath);
 	} catch (err) {
-		throw new Error(`Cannot inspect ${formatLogValue(candidatePath)}: ${errorMessage(err)}`, {
+		throw new Error(`Cannot inspect ${candidatePath}: ${errorMessage(err)}`, {
 			cause: err,
 		});
 	}
@@ -231,7 +217,7 @@ const readdirOrThrow = (candidatePath: string, fsAdapter: FilesystemAdapter): fs
 	try {
 		return fsAdapter.readdirSync(candidatePath);
 	} catch (err) {
-		throw new Error(`Cannot read ${formatLogValue(candidatePath)}: ${errorMessage(err)}`, {
+		throw new Error(`Cannot read ${candidatePath}: ${errorMessage(err)}`, {
 			cause: err,
 		});
 	}
@@ -252,12 +238,13 @@ export const inspectProtectedSubtree = (
 	artifactPath: string,
 	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
 ): string | undefined => {
+	// Descriptions stay raw; formatErrorMessage at the delete-refusal emission encodes once.
 	if (isSensitivePath(artifactPath)) {
-		return `sensitive path ${formatLogValue(artifactPath)}`;
+		return `sensitive path ${artifactPath}`;
 	}
 	const stats = lstatOrThrow(artifactPath, fsAdapter);
 	if (stats.isSymbolicLink()) {
-		return `symbolic link or junction ${formatLogValue(artifactPath)}`;
+		return `symbolic link or junction ${artifactPath}`;
 	}
 	if (!stats.isDirectory()) return undefined;
 	return inspectDirectoryDescendants(artifactPath, fsAdapter);
@@ -271,18 +258,14 @@ export const revalidateContainment = (
 	assertPathHasNoLinks(root.resolvedPath, root.label, fsAdapter);
 	const currentRoot = fsAdapter.realpathSync(root.resolvedPath);
 	if (normalizeForCompare(currentRoot) !== normalizeForCompare(root.canonicalPath)) {
-		throw new Error(
-			`Cleanup root changed after planning: ${formatLogValue(root.resolvedPath)}`
-		);
+		throw new Error(`Cleanup root changed after planning: ${root.resolvedPath}`);
 	}
 	const artifactStats = fsAdapter.lstatSync(artifactPath);
 	if (artifactStats.isSymbolicLink()) {
-		throw new Error(
-			`Artifact became a symbolic link or junction: ${formatLogValue(artifactPath)}`
-		);
+		throw new Error(`Artifact became a symbolic link or junction: ${artifactPath}`);
 	}
 	const currentArtifact = fsAdapter.realpathSync(artifactPath);
 	if (!isWithinOrEqual(normalizeForCompare(currentArtifact), normalizeForCompare(currentRoot))) {
-		throw new Error(`Artifact escaped its cleanup root: ${formatLogValue(artifactPath)}`);
+		throw new Error(`Artifact escaped its cleanup root: ${artifactPath}`);
 	}
 };

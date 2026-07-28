@@ -1,7 +1,9 @@
 /**
  * CLI message rendering. Owns the conversion of internal state and errors into
- * console output. Untrusted configuration labels and filesystem paths are
- * passed through formatLogValue before interpolation so that control characters
+ * console output. Untrusted configuration labels and filesystem paths printed
+ * directly are passed through formatLogValue. Thrown Error messages keep raw
+ * untrusted values and nested errorMessage text; formatErrorMessage applies
+ * formatLogValue once at the stderr emission boundary so control characters
  * cannot forge or alter terminal and captured-log output.
  */
 
@@ -33,5 +35,13 @@ export const formatLogValue = (value: string): string => {
 	return result;
 };
 
+/** Extract an upstream error's message without escaping (for composing internal exceptions). */
 export const errorMessage = (error: unknown): string =>
 	error instanceof Error ? error.message : String(error);
+
+/**
+ * Format an error for stderr emission. Extracts the upstream message and passes
+ * it through formatLogValue so C0 controls, DEL, and backslashes are encoded
+ * exactly once at the emission boundary.
+ */
+export const formatErrorMessage = (error: unknown): string => formatLogValue(errorMessage(error));

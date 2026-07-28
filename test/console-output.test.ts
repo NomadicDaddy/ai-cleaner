@@ -2,7 +2,11 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { formatLogValue } from '../src/reporting.ts';
+import type { FilesystemAdapter } from '../src/filesystem-adapter.ts';
+
+import { processTarget } from '../src/cleanup.ts';
+import { buildTargetPlan } from '../src/filesystem-safety.ts';
+import { errorMessage, formatErrorMessage, formatLogValue } from '../src/reporting.ts';
 import {
 	cleanupTemporaryRoots,
 	createTemporaryRoot,
@@ -20,6 +24,80 @@ const NEWLINE = '\n';
 const CR = '\r';
 const TAB = '\t';
 const BS = '\\';
+
+const CONTROL_PAYLOAD = `boom${NEWLINE}forged${CR}line${TAB}${ESC}${NUL}${DEL}${BS}trail`;
+const CONTROL_PAYLOAD_ONCE = formatLogValue(CONTROL_PAYLOAD);
+const CONTROL_PAYLOAD_TWICE = formatLogValue(CONTROL_PAYLOAD_ONCE);
+
+const assertNoRawControls = (text: string): void => {
+	for (let code = 0x00; code <= 0x1f; code++) {
+		expect(text).not.toContain(String.fromCharCode(code));
+	}
+	expect(text).not.toContain(String.fromCharCode(0x7f));
+};
+
+const assertSingleLayerEscaping = (text: string): void => {
+	assertNoRawControls(text);
+	// Exactly one formatLogValue layer on the injected payload.
+	expect(text).toContain(CONTROL_PAYLOAD_ONCE);
+	expect(text).not.toContain(CONTROL_PAYLOAD_TWICE);
+	expect(text.split(NEWLINE)).toHaveLength(1);
+};
+
+const captureConsoleError = (run: () => void): string => {
+	const lines: string[] = [];
+	const original = console.error;
+	console.error = (...args: unknown[]) => {
+		lines.push(args.map(String).join(' '));
+	};
+	try {
+		run();
+	} finally {
+		console.error = original;
+	}
+	return lines.join(NEWLINE);
+};
+
+const realAdapter: FilesystemAdapter = {
+	lstatSync: (p) => fs.lstatSync(p),
+	readdirSync: (p) => fs.readdirSync(p, { withFileTypes: true }),
+	realpathSync: (p) => fs.realpathSync.native(p),
+	rmSync: (p, options) => fs.rmSync(p, options),
+};
+
+const planSimpleTarget = (artifactRoot: string, fsAdapter: FilesystemAdapter) =>
+	buildTargetPlan(
+		[
+			{
+				kind: 'directory',
+				name: 'Fault injection',
+				paths: [artifactRoot],
+				retention: { allowEmpty: true, keepCount: 0 },
+				tool: 'test',
+			},
+		],
+		fsAdapter
+	);
+
+describe('formatErrorMessage encoding contract', () => {
+	test('extracts Error.message and applies formatLogValue once', () => {
+		const err = new Error(CONTROL_PAYLOAD);
+		const formatted = formatErrorMessage(err);
+		expect(formatted).toBe(formatLogValue(CONTROL_PAYLOAD));
+		assertSingleLayerEscaping(formatted);
+		expect(formatted.split(NEWLINE)).toHaveLength(1);
+	});
+
+	test('stringifies non-Error values through formatLogValue', () => {
+		expect(formatErrorMessage(CONTROL_PAYLOAD)).toBe(formatLogValue(CONTROL_PAYLOAD));
+	});
+
+	test('errorMessage stays raw for internal composition', () => {
+		const err = new Error(CONTROL_PAYLOAD);
+		expect(errorMessage(err)).toBe(CONTROL_PAYLOAD);
+		expect(errorMessage(err)).toContain(NEWLINE);
+	});
+});
 
 describe('formatLogValue encoding contract', () => {
 	test('leaves printable ASCII and Unicode unchanged', () => {
@@ -260,6 +338,182 @@ describe('malicious protected-descendant paths through formatLogValue', () => {
 			expect(encoded).not.toContain(String.fromCharCode(0x7f));
 			expect(encoded.split(NEWLINE)).toHaveLength(1);
 		}
+	});
+});
+
+describe('filesystem and OS error messages at emission boundaries', () => {
+	test('real ENOENT for missing config path with newline is one escaped stderr record', async () => {
+		const root = createTemporaryRoot();
+		const missingConfig = path.join(root, `missing${NEWLINE}config.json`);
+
+		const result = await runCli(['--config', missingConfig]);
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain('Failed to read config');
+		// Strip Bun's optional ANSI color wrappers and the record terminator newline so
+		// control-character checks apply only to the diagnostic payload itself.
+		const ansiCsi = String.fromCharCode(0x1b);
+		const withoutAnsi = result.stderr
+			.split(ansiCsi)
+			.join('')
+			.replace(/\[[0-9;]*m/g, '');
+		const diagnosticLines = withoutAnsi
+			.split(NEWLINE)
+			.map((line) => line.trimEnd())
+			.filter((line) => line.includes('Failed to read config'));
+		expect(diagnosticLines).toHaveLength(1);
+		const diagnostic = diagnosticLines[0]!;
+		assertNoRawControls(diagnostic);
+		// Path newline and Bun's nested ENOENT path are visible as `\n` once each.
+		expect(diagnostic).toContain(formatLogValue(`missing${NEWLINE}config.json`));
+		expect(diagnostic).toContain(`${BS}n`);
+		// Nested OS path is part of the same logical record (no raw newline split).
+		expect(diagnostic).toContain('ENOENT');
+	});
+
+	test('injected lstat failure with control characters is escaped once', () => {
+		const tempRoot = createTemporaryRoot();
+		const artifactRoot = path.join(tempRoot, 'artifacts');
+		const dirToDelete = path.join(artifactRoot, 'session-1');
+		fs.mkdirSync(dirToDelete, { recursive: true });
+
+		const adapter: FilesystemAdapter = {
+			...realAdapter,
+			lstatSync: (p) => {
+				if (path.resolve(p) === path.resolve(dirToDelete)) {
+					throw Object.assign(new Error(`EPERM: ${CONTROL_PAYLOAD}`), { code: 'EPERM' });
+				}
+				return realAdapter.lstatSync(p);
+			},
+		};
+
+		const plan = planSimpleTarget(artifactRoot, adapter);
+		const stderr = captureConsoleError(() => {
+			const result = processTarget(
+				plan[0]!,
+				{ allowEmpty: true, keepCount: 0 },
+				false,
+				false,
+				adapter
+			);
+			expect(result.failed).toBe(1);
+		});
+
+		expect(stderr).toContain('Cannot inspect');
+		assertSingleLayerEscaping(stderr);
+		expect(
+			stderr.split(NEWLINE).filter((line) => line.includes('Cannot inspect'))
+		).toHaveLength(1);
+	});
+
+	test('injected readdir failure with control characters is escaped once', () => {
+		const tempRoot = createTemporaryRoot();
+		const artifactRoot = path.join(tempRoot, 'artifacts');
+		fs.mkdirSync(path.join(artifactRoot, 'session-1'), { recursive: true });
+
+		const adapter: FilesystemAdapter = {
+			...realAdapter,
+			readdirSync: (p) => {
+				if (path.resolve(p) === path.resolve(artifactRoot)) {
+					throw Object.assign(new Error(`EIO: ${CONTROL_PAYLOAD}`), { code: 'EIO' });
+				}
+				return realAdapter.readdirSync(p);
+			},
+		};
+
+		const plan = planSimpleTarget(artifactRoot, adapter);
+		const stderr = captureConsoleError(() => {
+			const result = processTarget(
+				plan[0]!,
+				{ allowEmpty: true, keepCount: 0 },
+				true,
+				false,
+				adapter
+			);
+			expect(result.failed).toBe(1);
+		});
+
+		expect(stderr).toContain('Cannot read');
+		assertSingleLayerEscaping(stderr);
+		expect(stderr.split(NEWLINE).filter((line) => line.includes('Cannot read'))).toHaveLength(
+			1
+		);
+	});
+
+	test('injected realpath failure with control characters is escaped once', () => {
+		const tempRoot = createTemporaryRoot();
+		const artifactRoot = path.join(tempRoot, 'artifacts');
+		const dirToDelete = path.join(artifactRoot, 'session-1');
+		fs.mkdirSync(dirToDelete, { recursive: true });
+
+		const realpathCallCount: Record<string, number> = {};
+		const adapter: FilesystemAdapter = {
+			...realAdapter,
+			realpathSync: (p) => {
+				const key = path.resolve(p);
+				realpathCallCount[key] = (realpathCallCount[key] ?? 0) + 1;
+				if (key === path.resolve(dirToDelete) && realpathCallCount[key]! >= 2) {
+					throw Object.assign(new Error(`EIO: ${CONTROL_PAYLOAD}`), { code: 'EIO' });
+				}
+				return realAdapter.realpathSync(p);
+			},
+			rmSync: () => {
+				throw new Error('rm should not be reached');
+			},
+		};
+
+		const plan = planSimpleTarget(artifactRoot, adapter);
+		const stderr = captureConsoleError(() => {
+			const result = processTarget(
+				plan[0]!,
+				{ allowEmpty: true, keepCount: 0 },
+				true,
+				false,
+				adapter
+			);
+			expect(result.failed).toBeGreaterThanOrEqual(1);
+		});
+
+		expect(stderr).toContain('Refusing or failing to delete');
+		assertSingleLayerEscaping(stderr);
+	});
+
+	test('injected deletion failure with control characters is escaped once', () => {
+		const tempRoot = createTemporaryRoot();
+		const artifactRoot = path.join(tempRoot, 'artifacts');
+		const dirToDelete = path.join(artifactRoot, 'session-1');
+		fs.mkdirSync(dirToDelete, { recursive: true });
+
+		const adapter: FilesystemAdapter = {
+			...realAdapter,
+			rmSync: (p, options) => {
+				if (path.resolve(p) === path.resolve(dirToDelete)) {
+					throw Object.assign(new Error(`EACCES: ${CONTROL_PAYLOAD}`), {
+						code: 'EACCES',
+					});
+				}
+				realAdapter.rmSync(p, options);
+			},
+		};
+
+		const plan = planSimpleTarget(artifactRoot, adapter);
+		const stderr = captureConsoleError(() => {
+			const result = processTarget(
+				plan[0]!,
+				{ allowEmpty: true, keepCount: 0 },
+				true,
+				false,
+				adapter
+			);
+			expect(result.failed).toBe(1);
+			expect(result.matched).toBe(0);
+		});
+
+		expect(stderr).toContain('Refusing or failing to delete');
+		assertSingleLayerEscaping(stderr);
+		expect(
+			stderr.split(NEWLINE).filter((line) => line.includes('Refusing or failing to delete'))
+		).toHaveLength(1);
+		expect(fs.existsSync(dirToDelete)).toBeTrue();
 	});
 });
 

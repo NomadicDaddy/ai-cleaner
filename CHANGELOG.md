@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Filesystem and OS error diagnostics no longer leak raw control characters on stderr.
+  `formatErrorMessage` in `src/reporting.ts` extracts the upstream message and applies
+  `formatLogValue` once at emission in `index.ts` and `src/cleanup.ts`. Composed exceptions
+  keep raw paths and nested `errorMessage` text so Windows path backslashes and agent-name
+  controls are not double-escaped. Regression coverage for real ENOENT and injected
+  lstat/readdir/realpath/deletion failures with newline, CR, tab, ESC, NUL, DEL, and
+  backslash (feature
+  `audit-security-1785207355-filesystem-error-messages-bypass-control-character-escaping`).
 - Cleanup-root planning no longer admits protected operating-system descendants or regular
   files. Protected OS trees reject equal-or-descendant paths; user-container roots and the
   invoking home remain exact-only. Existing roots must be directories at `planRoot` time

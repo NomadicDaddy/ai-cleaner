@@ -3,7 +3,7 @@
 import { pathToFileURL } from 'node:url';
 
 import { CliError, HELP_TEXT } from './src/cli.ts';
-import { errorMessage } from './src/reporting.ts';
+import { formatErrorMessage } from './src/reporting.ts';
 import { run } from './src/run.ts';
 
 const isMainModule =
@@ -13,7 +13,7 @@ if (isMainModule) {
 	try {
 		process.exitCode = run();
 	} catch (err) {
-		console.error(errorMessage(err));
+		console.error(formatErrorMessage(err));
 		if (err instanceof CliError) {
 			console.error(HELP_TEXT);
 			process.exitCode = 2;
