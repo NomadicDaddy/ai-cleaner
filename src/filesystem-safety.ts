@@ -34,48 +34,40 @@ export const normalizeForCompare = (candidatePath: string): string => {
 	return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 };
 
-const DANGEROUS_PATHS: Set<string> = (() => {
-	const paths = new Set<string>();
-	const add = (candidatePath: string) => paths.add(normalizeForCompare(candidatePath));
-	if (process.platform === 'win32') {
-		for (const dangerousPath of [
-			'C:\\Windows',
-			'C:\\Windows\\System32',
-			'C:\\Program Files',
-			'C:\\Program Files (x86)',
-			'C:\\Users',
-			'C:\\ProgramData',
-		]) {
-			add(dangerousPath);
-		}
-	} else {
-		for (const dangerousPath of [
-			'/bin',
-			'/boot',
-			'/dev',
-			'/etc',
-			'/home',
-			'/lib',
-			'/lib64',
-			'/opt',
-			'/proc',
-			'/root',
-			'/sbin',
-			'/srv',
-			'/sys',
-			'/usr',
-			'/usr/bin',
-			'/usr/local',
-			'/usr/sbin',
-			'/var',
-			'/Users',
-		]) {
-			add(dangerousPath);
-		}
-	}
-	add(os.homedir());
-	return paths;
-})();
+const WIN_DANGEROUS = [
+	'C:\\Windows',
+	'C:\\Windows\\System32',
+	'C:\\Program Files',
+	'C:\\Program Files (x86)',
+	'C:\\Users',
+	'C:\\ProgramData',
+];
+const POSIX_DANGEROUS = [
+	'/bin',
+	'/boot',
+	'/dev',
+	'/etc',
+	'/home',
+	'/lib',
+	'/lib64',
+	'/opt',
+	'/proc',
+	'/root',
+	'/sbin',
+	'/srv',
+	'/sys',
+	'/usr',
+	'/usr/bin',
+	'/usr/local',
+	'/usr/sbin',
+	'/var',
+	'/Users',
+];
+const DANGEROUS_PATHS: Set<string> = new Set(
+	[...(process.platform === 'win32' ? WIN_DANGEROUS : POSIX_DANGEROUS), os.homedir()].map(
+		normalizeForCompare
+	)
+);
 
 const isFilesystemRoot = (candidatePath: string): boolean => {
 	const resolved = path.resolve(candidatePath);
@@ -154,37 +146,41 @@ const assertPathHasNoLinks = (
 	}
 };
 
+const assertNotDangerousRoot = (candidatePath: string, label: string, kind: string): void => {
+	if (isDangerousPath(candidatePath)) {
+		throw new Error(
+			`Refusing dangerous ${kind} root for ${label}: ${formatLogValue(candidatePath)}`
+		);
+	}
+};
+
+const resolveCanonicalPath = (
+	resolvedPath: string,
+	label: string,
+	fsAdapter: FilesystemAdapter
+): string => {
+	try {
+		return fsAdapter.realpathSync(resolvedPath);
+	} catch (err) {
+		const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
+		if (code === 'ENOENT') return resolvedPath;
+		throw new Error(
+			`Cannot resolve ${label} ${formatLogValue(resolvedPath)}: ${errorMessage(err)}`,
+			{ cause: err }
+		);
+	}
+};
+
 export const planRoot = (
 	configuredPath: string,
 	label: string,
 	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
 ): PlannedRoot => {
 	const resolvedPath = expandPath(configuredPath);
-	if (isDangerousPath(resolvedPath)) {
-		throw new Error(
-			`Refusing dangerous cleanup root for ${label}: ${formatLogValue(resolvedPath)}`
-		);
-	}
+	assertNotDangerousRoot(resolvedPath, label, 'cleanup');
 	assertPathHasNoLinks(resolvedPath, label, fsAdapter);
-	let canonicalPath = resolvedPath;
-	try {
-		canonicalPath = fsAdapter.realpathSync(resolvedPath);
-	} catch (err) {
-		const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
-		if (code !== 'ENOENT') {
-			throw new Error(
-				`Cannot resolve ${label} ${formatLogValue(resolvedPath)}: ${errorMessage(err)}`,
-				{
-					cause: err,
-				}
-			);
-		}
-	}
-	if (isDangerousPath(canonicalPath)) {
-		throw new Error(
-			`Refusing dangerous canonical root for ${label}: ${formatLogValue(canonicalPath)}`
-		);
-	}
+	const canonicalPath = resolveCanonicalPath(resolvedPath, label, fsAdapter);
+	assertNotDangerousRoot(canonicalPath, label, 'canonical');
 	if (normalizeForCompare(canonicalPath) !== normalizeForCompare(resolvedPath)) {
 		throw new Error(
 			`${label} resolves through a symbolic link or junction: ${formatLogValue(resolvedPath)}`
@@ -232,6 +228,37 @@ export const buildTargetPlan = (
 	return plannedTargets;
 };
 
+const lstatOrThrow = (candidatePath: string, fsAdapter: FilesystemAdapter): fs.Stats => {
+	try {
+		return fsAdapter.lstatSync(candidatePath);
+	} catch (err) {
+		throw new Error(`Cannot inspect ${formatLogValue(candidatePath)}: ${errorMessage(err)}`, {
+			cause: err,
+		});
+	}
+};
+
+const readdirOrThrow = (candidatePath: string, fsAdapter: FilesystemAdapter): fs.Dirent[] => {
+	try {
+		return fsAdapter.readdirSync(candidatePath);
+	} catch (err) {
+		throw new Error(`Cannot read ${formatLogValue(candidatePath)}: ${errorMessage(err)}`, {
+			cause: err,
+		});
+	}
+};
+
+const inspectDirectoryDescendants = (
+	artifactPath: string,
+	fsAdapter: FilesystemAdapter
+): string | undefined => {
+	for (const entry of readdirOrThrow(artifactPath, fsAdapter)) {
+		const found = inspectProtectedSubtree(path.join(artifactPath, entry.name), fsAdapter);
+		if (found !== undefined) return found;
+	}
+	return undefined;
+};
+
 export const inspectProtectedSubtree = (
 	artifactPath: string,
 	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
@@ -239,38 +266,12 @@ export const inspectProtectedSubtree = (
 	if (isSensitivePath(artifactPath)) {
 		return `sensitive path ${formatLogValue(artifactPath)}`;
 	}
-	let stats: fs.Stats;
-	try {
-		stats = fsAdapter.lstatSync(artifactPath);
-	} catch (err) {
-		throw new Error(`Cannot inspect ${formatLogValue(artifactPath)}: ${errorMessage(err)}`, {
-			cause: err,
-		});
-	}
+	const stats = lstatOrThrow(artifactPath, fsAdapter);
 	if (stats.isSymbolicLink()) {
 		return `symbolic link or junction ${formatLogValue(artifactPath)}`;
 	}
-	if (!stats.isDirectory()) {
-		return undefined;
-	}
-	let entries: fs.Dirent[];
-	try {
-		entries = fsAdapter.readdirSync(artifactPath);
-	} catch (err) {
-		throw new Error(`Cannot read ${formatLogValue(artifactPath)}: ${errorMessage(err)}`, {
-			cause: err,
-		});
-	}
-	for (const entry of entries) {
-		const protectedDescendant = inspectProtectedSubtree(
-			path.join(artifactPath, entry.name),
-			fsAdapter
-		);
-		if (protectedDescendant !== undefined) {
-			return protectedDescendant;
-		}
-	}
-	return undefined;
+	if (!stats.isDirectory()) return undefined;
+	return inspectDirectoryDescendants(artifactPath, fsAdapter);
 };
 
 export const revalidateContainment = (

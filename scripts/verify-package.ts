@@ -62,52 +62,77 @@ const listTarballPaths = async (tarballPath: string, cwd: string): Promise<strin
 		.map((line) => line.replace(/\\/g, '/'));
 };
 
-const assertArchiveContents = (archivePaths: string[], runtimeModules: string[]): void => {
-	const normalized = new Set(archivePaths.map((entry) => entry.replace(/\/$/, '')));
+const FORBIDDEN_ARCHIVE_PREFIXES = [
+	'package/.aidd',
+	'package/dist',
+	'package/test',
+	'package/test-harness',
+	'package/scripts',
+	'package/node_modules',
+	'package/.githooks',
+];
 
+const FORBIDDEN_ARCHIVE_EXACT = new Set([
+	'package/eslint.config.js',
+	'package/tsconfig.json',
+	'package/bun.lock',
+	'package/TODO.md',
+]);
+
+const isForbiddenArchiveEntry = (entry: string): boolean => {
+	const bare = entry.replace(/\/$/, '');
+	if (FORBIDDEN_ARCHIVE_EXACT.has(bare)) {
+		return true;
+	}
+	return FORBIDDEN_ARCHIVE_PREFIXES.some(
+		(prefix) => bare === prefix || bare.startsWith(`${prefix}/`)
+	);
+};
+
+const assertRequiredArchiveEntries = (normalized: Set<string>, runtimeModules: string[]): void => {
 	const required = [
 		'package/LICENSE',
 		'package/README.md',
 		'package/config.json',
 		'package/index.ts',
+		...runtimeModules.map((modulePath) => `package/${modulePath}`),
 	];
-	for (const modulePath of runtimeModules) {
-		required.push(`package/${modulePath}`);
-	}
-
 	const missing = required.filter((entry) => !normalized.has(entry));
 	if (missing.length > 0) {
 		throw new Error(`packed archive missing required files:\n${missing.join('\n')}`);
 	}
+};
 
-	const forbiddenPrefixes = [
-		'package/.aidd',
-		'package/dist',
-		'package/test',
-		'package/test-harness',
-		'package/scripts',
-		'package/node_modules',
-		'package/.githooks',
-	];
-	const forbiddenExact = new Set([
-		'package/eslint.config.js',
-		'package/tsconfig.json',
-		'package/bun.lock',
-		'package/TODO.md',
-	]);
-
-	const forbiddenHits = archivePaths.filter((entry) => {
-		const bare = entry.replace(/\/$/, '');
-		if (forbiddenExact.has(bare)) {
-			return true;
-		}
-		return forbiddenPrefixes.some((prefix) => bare === prefix || bare.startsWith(`${prefix}/`));
-	});
+const assertArchiveContents = (archivePaths: string[], runtimeModules: string[]): void => {
+	const normalized = new Set(archivePaths.map((entry) => entry.replace(/\/$/, '')));
+	assertRequiredArchiveEntries(normalized, runtimeModules);
+	const forbiddenHits = archivePaths.filter(isForbiddenArchiveEntry);
 	if (forbiddenHits.length > 0) {
 		throw new Error(
 			`packed archive contains development artifacts:\n${forbiddenHits.join('\n')}`
 		);
 	}
+};
+
+const resolveTarballPath = (packDir: string, packStdout: string): string => {
+	const printed = packStdout
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0);
+	const named = printed.find((line) => line.endsWith('.tgz'));
+	if (named !== undefined) {
+		const candidate = path.isAbsolute(named) ? named : path.join(packDir, path.basename(named));
+		if (fs.existsSync(candidate)) {
+			return candidate;
+		}
+	}
+	const candidates = fs.readdirSync(packDir).filter((name) => name.endsWith('.tgz'));
+	if (candidates.length !== 1) {
+		throw new Error(
+			`expected exactly one tarball in ${packDir}; found: ${candidates.join(', ') || '(none)'}; pack stdout:\n${packStdout}`
+		);
+	}
+	return path.join(packDir, candidates[0]!);
 };
 
 const packTarball = async (packDir: string): Promise<string> => {
@@ -120,26 +145,7 @@ const packTarball = async (packDir: string): Promise<string> => {
 			`bun pm pack failed (${result.exitCode}):\n${result.stderr}\n${result.stdout}`
 		);
 	}
-	const printed = result.stdout
-		.split(/\r?\n/)
-		.map((line) => line.trim())
-		.filter((line) => line.length > 0);
-	const named = printed.find((line) => line.endsWith('.tgz'));
-	const tarballPath = named
-		? path.isAbsolute(named)
-			? named
-			: path.join(packDir, path.basename(named))
-		: undefined;
-	if (tarballPath === undefined || !fs.existsSync(tarballPath)) {
-		const candidates = fs.readdirSync(packDir).filter((name) => name.endsWith('.tgz'));
-		if (candidates.length !== 1) {
-			throw new Error(
-				`expected exactly one tarball in ${packDir}; found: ${candidates.join(', ') || '(none)'}; pack stdout:\n${result.stdout}`
-			);
-		}
-		return path.join(packDir, candidates[0]!);
-	}
-	return tarballPath;
+	return resolveTarballPath(packDir, result.stdout);
 };
 
 const extractTarball = async (tarballPath: string, extractDir: string): Promise<string> => {

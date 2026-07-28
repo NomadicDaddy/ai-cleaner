@@ -23,7 +23,7 @@ export interface TestTarget {
 }
 
 export const repositoryRoot = path.resolve(import.meta.dir, '..');
-export const entrypoint = path.join(repositoryRoot, 'index.ts');
+const entrypoint = path.join(repositoryRoot, 'index.ts');
 
 const temporaryRoots: string[] = [];
 

@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Reduced cyclomatic complexity across cleanup, CLI, config, run, targets, filesystem-safety,
+  reporting, and package verification by extracting private helpers (typed flag lookup for
+  `parseArgs`, retention/target/preset parsers, artifact/root processors, one-root legacy
+  discovery). Unexported same-file-only symbols `listArtifacts`, `selectArtifactsToDelete`,
+  `parseConfig`, `RiskLevel`, and test `entrypoint`. Audit-time complexity metrics and Knip
+  unused-export checks pass; behavior, messages, and exit codes unchanged (feature
+  `audit-complication-1785207356-safety-and-configuration-functions-exceed-complexity-limits`).
 - Extracted `FilesystemAdapter` and `defaultFilesystemAdapter` into private
   `src/filesystem-adapter.ts` so every non-test TypeScript source file stays under 300 lines.
   Path planning remains in `src/filesystem-safety.ts`; cleanup, run, and release-verification

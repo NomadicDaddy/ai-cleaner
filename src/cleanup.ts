@@ -47,38 +47,91 @@ export const skipInactiveTarget = (target: CleanupTarget, aggressive: boolean): 
 const matchesKind = (artifact: Artifact, kind: ArtifactKind): boolean =>
 	kind === 'any' || (kind === 'directory' ? artifact.isDirectory : artifact.isFile);
 
-export const listArtifacts = (
-	root: PlannedRoot,
-	kind: ArtifactKind,
-	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
-): { artifacts: Artifact[]; failed: number } => {
-	let rootStats: fs.Stats;
+type RootInspection =
+	| { status: 'missing' }
+	| { status: 'failed' }
+	| { status: 'file'; artifact: Artifact }
+	| { status: 'directory' };
+
+const lstatRoot = (root: PlannedRoot, fsAdapter: FilesystemAdapter): fs.Stats | RootInspection => {
 	try {
-		rootStats = fsAdapter.lstatSync(root.resolvedPath);
+		return fsAdapter.lstatSync(root.resolvedPath);
 	} catch (err) {
 		const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
 		if (code === 'ENOENT') {
-			return { artifacts: [], failed: 0 };
+			return { status: 'missing' };
 		}
 		console.error(`Cannot inspect ${formatLogValue(root.resolvedPath)}: ${errorMessage(err)}`);
-		return { artifacts: [], failed: 1 };
+		return { status: 'failed' };
+	}
+};
+
+const fileRootInspection = (
+	rootPath: string,
+	rootStats: fs.Stats,
+	kind: ArtifactKind
+): RootInspection => {
+	const artifact: Artifact = {
+		path: rootPath,
+		time: rootStats.mtimeMs,
+		isDirectory: false,
+		isFile: rootStats.isFile(),
+	};
+	return matchesKind(artifact, kind) ? { status: 'file', artifact } : { status: 'missing' };
+};
+
+const inspectRoot = (
+	root: PlannedRoot,
+	kind: ArtifactKind,
+	fsAdapter: FilesystemAdapter
+): RootInspection => {
+	const rootStats = lstatRoot(root, fsAdapter);
+	if (!('isSymbolicLink' in rootStats)) {
+		return rootStats;
 	}
 	if (rootStats.isSymbolicLink()) {
 		console.error(
 			`Refusing symbolic link or junction cleanup root: ${formatLogValue(root.resolvedPath)}`
 		);
-		return { artifacts: [], failed: 1 };
+		return { status: 'failed' };
 	}
 	if (!rootStats.isDirectory()) {
-		const artifact = {
-			path: root.resolvedPath,
-			time: rootStats.mtimeMs,
-			isDirectory: false,
-			isFile: rootStats.isFile(),
-		};
-		return { artifacts: matchesKind(artifact, kind) ? [artifact] : [], failed: 0 };
+		return fileRootInspection(root.resolvedPath, rootStats, kind);
 	}
+	return { status: 'directory' };
+};
 
+const classifyDirectoryEntry = (
+	artifactPath: string,
+	kind: ArtifactKind,
+	fsAdapter: FilesystemAdapter
+): { artifact?: Artifact; failed: boolean } => {
+	try {
+		const stats = fsAdapter.lstatSync(artifactPath);
+		if (stats.isSymbolicLink()) {
+			console.error(
+				`Refusing symbolic link or junction artifact: ${formatLogValue(artifactPath)}`
+			);
+			return { failed: true };
+		}
+		const artifact: Artifact = {
+			path: artifactPath,
+			time: stats.mtimeMs,
+			isDirectory: stats.isDirectory(),
+			isFile: stats.isFile(),
+		};
+		return matchesKind(artifact, kind) ? { artifact, failed: false } : { failed: false };
+	} catch (err) {
+		console.error(`Cannot inspect ${formatLogValue(artifactPath)}: ${errorMessage(err)}`);
+		return { failed: true };
+	}
+};
+
+const collectDirectoryArtifacts = (
+	root: PlannedRoot,
+	kind: ArtifactKind,
+	fsAdapter: FilesystemAdapter
+): { artifacts: Artifact[]; failed: number } => {
 	let entries: fs.Dirent[];
 	try {
 		entries = fsAdapter.readdirSync(root.resolvedPath);
@@ -86,41 +139,44 @@ export const listArtifacts = (
 		console.error(`Cannot read ${formatLogValue(root.resolvedPath)}: ${errorMessage(err)}`);
 		return { artifacts: [], failed: 1 };
 	}
-
 	const artifacts: Artifact[] = [];
 	let failed = 0;
 	for (const dirent of entries) {
-		const artifactPath = path.join(root.resolvedPath, dirent.name);
-		try {
-			const stats = fsAdapter.lstatSync(artifactPath);
-			if (stats.isSymbolicLink()) {
-				console.error(
-					`Refusing symbolic link or junction artifact: ${formatLogValue(artifactPath)}`
-				);
-				failed++;
-				continue;
-			}
-			const artifact = {
-				path: artifactPath,
-				time: stats.mtimeMs,
-				isDirectory: stats.isDirectory(),
-				isFile: stats.isFile(),
-			};
-			if (matchesKind(artifact, kind)) {
-				artifacts.push(artifact);
-			}
-		} catch (err) {
-			console.error(`Cannot inspect ${formatLogValue(artifactPath)}: ${errorMessage(err)}`);
+		const classified = classifyDirectoryEntry(
+			path.join(root.resolvedPath, dirent.name),
+			kind,
+			fsAdapter
+		);
+		if (classified.failed) {
 			failed++;
+			continue;
+		}
+		if (classified.artifact !== undefined) {
+			artifacts.push(classified.artifact);
 		}
 	}
 	return { artifacts, failed };
 };
 
-export const selectArtifactsToDelete = (
-	artifacts: Artifact[],
-	policy: RetentionPolicy
-): Artifact[] => {
+const listArtifacts = (
+	root: PlannedRoot,
+	kind: ArtifactKind,
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
+): { artifacts: Artifact[]; failed: number } => {
+	const inspection = inspectRoot(root, kind, fsAdapter);
+	if (inspection.status === 'missing') {
+		return { artifacts: [], failed: 0 };
+	}
+	if (inspection.status === 'failed') {
+		return { artifacts: [], failed: 1 };
+	}
+	if (inspection.status === 'file') {
+		return { artifacts: [inspection.artifact], failed: 0 };
+	}
+	return collectDirectoryArtifacts(root, kind, fsAdapter);
+};
+
+const selectArtifactsToDelete = (artifacts: Artifact[], policy: RetentionPolicy): Artifact[] => {
 	if (policy.keepCount !== undefined) {
 		return artifacts
 			.toSorted((first, second) => second.time - first.time)
@@ -128,6 +184,63 @@ export const selectArtifactsToDelete = (
 	}
 	const cutoff = Date.now() - (policy.keepDays ?? 0) * 24 * 60 * 60 * 1000;
 	return artifacts.filter((artifact) => artifact.time < cutoff);
+};
+
+const processArtifact = (
+	root: PlannedRoot,
+	artifact: Artifact,
+	apply: boolean,
+	result: ProcessResult,
+	fsAdapter: FilesystemAdapter
+): void => {
+	try {
+		revalidateContainment(root, artifact.path, fsAdapter);
+		const protectedEntry = inspectProtectedSubtree(artifact.path, fsAdapter);
+		if (protectedEntry !== undefined) {
+			throw new Error(`contains protected ${protectedEntry}`);
+		}
+		if (!apply) {
+			console.log(`[DRY RUN] Would delete: ${formatLogValue(artifact.path)}`);
+			result.matched++;
+			return;
+		}
+		revalidateContainment(root, artifact.path, fsAdapter);
+		console.log(`Deleting: ${formatLogValue(artifact.path)}`);
+		fsAdapter.rmSync(artifact.path, { force: false, recursive: true });
+		result.matched++;
+	} catch (err) {
+		console.error(
+			`Refusing or failing to delete ${formatLogValue(artifact.path)}: ${errorMessage(err)}`
+		);
+		result.failed++;
+	}
+};
+
+interface RootProcessContext {
+	apply: boolean;
+	fsAdapter: FilesystemAdapter;
+	kind: ArtifactKind;
+	policy: RetentionPolicy;
+	result: ProcessResult;
+	root: PlannedRoot;
+}
+
+const processRoot = (context: RootProcessContext): void => {
+	const { apply, fsAdapter, kind, policy, result, root } = context;
+	const scan = listArtifacts(root, kind, fsAdapter);
+	result.failed += scan.failed;
+	if (scan.artifacts.length === 0) {
+		console.log(`No matching artifacts under: ${formatLogValue(root.resolvedPath)}`);
+		return;
+	}
+	const toDelete = selectArtifactsToDelete(scan.artifacts, policy);
+	if (toDelete.length === 0) {
+		console.log(`No artifacts to clean under: ${formatLogValue(root.resolvedPath)}`);
+		return;
+	}
+	for (const artifact of toDelete) {
+		processArtifact(root, artifact, apply, result, fsAdapter);
+	}
 };
 
 export const processTarget = (
@@ -152,41 +265,7 @@ export const processTarget = (
 	console.log(`Policy: ${JSON.stringify(policy)}`);
 
 	for (const root of roots) {
-		const scan = listArtifacts(root, kind, fsAdapter);
-		result.failed += scan.failed;
-		if (scan.artifacts.length === 0) {
-			console.log(`No matching artifacts under: ${formatLogValue(root.resolvedPath)}`);
-			continue;
-		}
-		const toDelete = selectArtifactsToDelete(scan.artifacts, policy);
-		if (toDelete.length === 0) {
-			console.log(`No artifacts to clean under: ${formatLogValue(root.resolvedPath)}`);
-			continue;
-		}
-
-		for (const artifact of toDelete) {
-			try {
-				revalidateContainment(root, artifact.path, fsAdapter);
-				const protectedEntry = inspectProtectedSubtree(artifact.path, fsAdapter);
-				if (protectedEntry !== undefined) {
-					throw new Error(`contains protected ${protectedEntry}`);
-				}
-				if (!apply) {
-					console.log(`[DRY RUN] Would delete: ${formatLogValue(artifact.path)}`);
-					result.matched++;
-					continue;
-				}
-				revalidateContainment(root, artifact.path, fsAdapter);
-				console.log(`Deleting: ${formatLogValue(artifact.path)}`);
-				fsAdapter.rmSync(artifact.path, { force: false, recursive: true });
-				result.matched++;
-			} catch (err) {
-				console.error(
-					`Refusing or failing to delete ${formatLogValue(artifact.path)}: ${errorMessage(err)}`
-				);
-				result.failed++;
-			}
-		}
+		processRoot({ apply, fsAdapter, kind, policy, result, root });
 	}
 	return result;
 };

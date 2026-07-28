@@ -14,22 +14,21 @@
  * that no raw U+0000 through U+001F or U+007F from an untrusted value reaches
  * stdout or stderr, keeping each log event one logical record.
  */
+const encodeControlChar = (char: string, code: number): string => {
+	if (char === '\\') return '\\\\';
+	if (char === '\n') return '\\n';
+	if (char === '\r') return '\\r';
+	if (char === '\t') return '\\t';
+	if (code <= 0x1f || code === 0x7f) {
+		return `\\u${code.toString(16).padStart(4, '0')}`;
+	}
+	return char;
+};
+
 export const formatLogValue = (value: string): string => {
 	let result = '';
 	for (const char of value) {
-		const code = char.codePointAt(0)!;
-		result +=
-			char === '\\'
-				? '\\\\'
-				: char === '\n'
-					? '\\n'
-					: char === '\r'
-						? '\\r'
-						: char === '\t'
-							? '\\t'
-							: code <= 0x1f || code === 0x7f
-								? `\\u${code.toString(16).padStart(4, '0')}`
-								: char;
+		result += encodeControlChar(char, char.codePointAt(0)!);
 	}
 	return result;
 };

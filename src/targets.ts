@@ -13,46 +13,76 @@ export const presetTargetsFromConfig = (config: Config): CleanupTarget[] => {
 	return selected.flatMap((presetName) => presets[presetName] ?? []);
 };
 
+const readLegacyRootEntries = (rootPath: string): fs.Dirent[] | undefined => {
+	try {
+		return fs.readdirSync(rootPath, { withFileTypes: true });
+	} catch (err) {
+		const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
+		if (code === 'ENOENT') {
+			console.warn(`Target path does not exist: ${formatLogValue(rootPath)}`);
+			return undefined;
+		}
+		throw new Error(`Cannot read ${rootPath}: ${errorMessage(err)}`, {
+			cause: err,
+		});
+	}
+};
+
+const isLegacyDirectoryEntry = (dirent: fs.Dirent): boolean =>
+	dirent.isDirectory() && !dirent.isSymbolicLink();
+
+const legacyTargetFromEntry = (
+	targetPath: string,
+	dirent: fs.Dirent,
+	config: Config,
+	explicitPaths: Set<string>
+): CleanupTarget | undefined => {
+	const subPath = path.join(targetPath, dirent.name);
+	const expandedSubPath = normalizeForCompare(expandPath(subPath));
+	if (explicitPaths.has(expandedSubPath)) {
+		console.log(
+			`Skipping legacy entry already covered by explicit target: ${formatLogValue(subPath)}`
+		);
+		return undefined;
+	}
+	return {
+		name: `${dirent.name} legacy artifacts`,
+		tool: dirent.name,
+		paths: [subPath],
+		retention: config.overrides?.[dirent.name] ?? config.defaultRetention ?? DEFAULT_RETENTION,
+	};
+};
+
+const legacyTargetsFromOneRoot = (
+	targetPath: string,
+	config: Config,
+	explicitPaths: Set<string>
+): CleanupTarget[] => {
+	const root = planRoot(targetPath, `targetPaths entry ${targetPath}`);
+	const entries = readLegacyRootEntries(root.resolvedPath);
+	if (entries === undefined) {
+		return [];
+	}
+	const targets: CleanupTarget[] = [];
+	for (const dirent of entries) {
+		if (!isLegacyDirectoryEntry(dirent)) {
+			continue;
+		}
+		const target = legacyTargetFromEntry(targetPath, dirent, config, explicitPaths);
+		if (target !== undefined) {
+			targets.push(target);
+		}
+	}
+	return targets;
+};
+
 export const legacyTargetsFromConfig = (
 	config: Config,
 	explicitPaths: Set<string>
 ): CleanupTarget[] => {
 	const targets: CleanupTarget[] = [];
 	for (const targetPath of config.targetPaths ?? []) {
-		const root = planRoot(targetPath, `targetPaths entry ${targetPath}`);
-		let entries: fs.Dirent[];
-		try {
-			entries = fs.readdirSync(root.resolvedPath, { withFileTypes: true });
-		} catch (err) {
-			const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
-			if (code === 'ENOENT') {
-				console.warn(`Target path does not exist: ${formatLogValue(root.resolvedPath)}`);
-				continue;
-			}
-			throw new Error(`Cannot read ${root.resolvedPath}: ${errorMessage(err)}`, {
-				cause: err,
-			});
-		}
-		for (const dirent of entries) {
-			if (!dirent.isDirectory() || dirent.isSymbolicLink()) {
-				continue;
-			}
-			const subPath = path.join(targetPath, dirent.name);
-			const expandedSubPath = normalizeForCompare(expandPath(subPath));
-			if (explicitPaths.has(expandedSubPath)) {
-				console.log(
-					`Skipping legacy entry already covered by explicit target: ${formatLogValue(subPath)}`
-				);
-				continue;
-			}
-			targets.push({
-				name: `${dirent.name} legacy artifacts`,
-				tool: dirent.name,
-				paths: [subPath],
-				retention:
-					config.overrides?.[dirent.name] ?? config.defaultRetention ?? DEFAULT_RETENTION,
-			});
-		}
+		targets.push(...legacyTargetsFromOneRoot(targetPath, config, explicitPaths));
 	}
 	return targets;
 };

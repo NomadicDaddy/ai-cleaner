@@ -5,7 +5,7 @@ import bundledConfig from '../config.json' with { type: 'json' };
 import { errorMessage, formatLogValue } from './reporting.ts';
 
 export type ArtifactKind = 'directory' | 'file' | 'any';
-export type RiskLevel = 'normal' | 'aggressive';
+type RiskLevel = 'normal' | 'aggressive';
 
 export interface RetentionPolicy {
 	keepCount?: number;
@@ -36,14 +36,21 @@ export interface Config {
 export const DEFAULT_RETENTION: RetentionPolicy = { keepCount: 5 };
 const ARTIFACT_KINDS = new Set<ArtifactKind>(['directory', 'file', 'any']);
 const RISK_LEVELS = new Set<RiskLevel>(['normal', 'aggressive']);
+const CONFIG_KEYS = [
+	'aggressive',
+	'defaultRetention',
+	'overrides',
+	'presets',
+	'targetPaths',
+	'targets',
+	'usePresets',
+] as const;
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const assertRecord = (value: unknown, label: string): Record<string, unknown> => {
-	if (!isRecord(value)) {
-		throw new Error(`${label} must be an object.`);
-	}
+	if (!isRecord(value)) throw new Error(`${label} must be an object.`);
 	return value;
 };
 
@@ -67,9 +74,7 @@ const parseNonEmptyString = (value: unknown, label: string): string => {
 };
 
 const parseBoolean = (value: unknown, label: string): boolean => {
-	if (typeof value !== 'boolean') {
-		throw new Error(`${label} must be a boolean.`);
-	}
+	if (typeof value !== 'boolean') throw new Error(`${label} must be a boolean.`);
 	return value;
 };
 
@@ -84,50 +89,77 @@ const parseStringArray = (value: unknown, label: string, allowEmpty = true): str
 	return values;
 };
 
-const parseRetentionPolicy = (value: unknown, label: string): RetentionPolicy => {
-	const policy = assertRecord(value, label);
-	assertAllowedKeys(policy, ['keepCount', 'keepDays', 'allowEmpty'], label);
-	const keepCount = policy.keepCount;
-	const keepDays = policy.keepDays;
+const parseKeepCount = (keepCount: unknown, label: string): number => {
+	if (typeof keepCount !== 'number' || !Number.isInteger(keepCount) || keepCount < 0) {
+		throw new Error(`${label}.keepCount must be a non-negative integer.`);
+	}
+	return keepCount;
+};
+
+const parseKeepDays = (keepDays: unknown, label: string): number => {
+	if (typeof keepDays !== 'number' || !Number.isFinite(keepDays) || keepDays < 0) {
+		throw new Error(`${label}.keepDays must be a non-negative number.`);
+	}
+	return keepDays;
+};
+
+const assertExclusiveRetention = (keepCount: unknown, keepDays: unknown, label: string): void => {
 	if (keepCount === undefined && keepDays === undefined) {
 		throw new Error(`${label} must define keepCount or keepDays.`);
 	}
 	if (keepCount !== undefined && keepDays !== undefined) {
 		throw new Error(`${label} must not define both keepCount and keepDays.`);
 	}
-	if (
-		keepCount !== undefined &&
-		(typeof keepCount !== 'number' || !Number.isInteger(keepCount) || keepCount < 0)
-	) {
-		throw new Error(`${label}.keepCount must be a non-negative integer.`);
-	}
-	if (
-		keepDays !== undefined &&
-		(typeof keepDays !== 'number' || !Number.isFinite(keepDays) || keepDays < 0)
-	) {
-		throw new Error(`${label}.keepDays must be a non-negative number.`);
-	}
-	let allowEmpty: boolean | undefined;
-	if (policy.allowEmpty !== undefined) {
-		allowEmpty = parseBoolean(policy.allowEmpty, `${label}.allowEmpty`);
-	}
+};
+
+const assertKeepCountZeroAllowed = (
+	keepCount: number | undefined,
+	allowEmpty: boolean | undefined,
+	label: string
+): void => {
 	if (keepCount === 0 && allowEmpty !== true) {
 		throw new Error(
 			`${label}.keepCount is 0 (would delete all matching artifacts). ` +
 				'Set allowEmpty: true on the policy to confirm.'
 		);
 	}
-	const parsedPolicy: RetentionPolicy = {};
-	if (keepCount !== undefined) parsedPolicy.keepCount = keepCount;
-	if (keepDays !== undefined) parsedPolicy.keepDays = keepDays;
-	if (allowEmpty !== undefined) parsedPolicy.allowEmpty = allowEmpty;
-	return parsedPolicy;
 };
 
-const isArtifactKind = (value: string): value is ArtifactKind =>
-	ARTIFACT_KINDS.has(value as ArtifactKind);
+const parseRetentionPolicy = (value: unknown, label: string): RetentionPolicy => {
+	const policy = assertRecord(value, label);
+	assertAllowedKeys(policy, ['keepCount', 'keepDays', 'allowEmpty'], label);
+	assertExclusiveRetention(policy.keepCount, policy.keepDays, label);
+	const keepCount =
+		policy.keepCount === undefined ? undefined : parseKeepCount(policy.keepCount, label);
+	const keepDays =
+		policy.keepDays === undefined ? undefined : parseKeepDays(policy.keepDays, label);
+	const allowEmpty =
+		policy.allowEmpty === undefined
+			? undefined
+			: parseBoolean(policy.allowEmpty, `${label}.allowEmpty`);
+	assertKeepCountZeroAllowed(keepCount, allowEmpty, label);
+	return {
+		...(keepCount !== undefined ? { keepCount } : {}),
+		...(keepDays !== undefined ? { keepDays } : {}),
+		...(allowEmpty !== undefined ? { allowEmpty } : {}),
+	};
+};
 
-const isRiskLevel = (value: string): value is RiskLevel => RISK_LEVELS.has(value as RiskLevel);
+const parseTargetKind = (kind: unknown, label: string): ArtifactKind | undefined => {
+	if (kind === undefined) return undefined;
+	if (typeof kind !== 'string' || !ARTIFACT_KINDS.has(kind as ArtifactKind)) {
+		throw new Error(`${label}.kind must be directory, file, or any.`);
+	}
+	return kind as ArtifactKind;
+};
+
+const parseTargetRisk = (risk: unknown, label: string): RiskLevel | undefined => {
+	if (risk === undefined) return undefined;
+	if (typeof risk !== 'string' || !RISK_LEVELS.has(risk as RiskLevel)) {
+		throw new Error(`${label}.risk must be normal or aggressive.`);
+	}
+	return risk as RiskLevel;
+};
 
 const parseCleanupTarget = (value: unknown, label: string): CleanupTarget => {
 	const target = assertRecord(value, label);
@@ -136,108 +168,110 @@ const parseCleanupTarget = (value: unknown, label: string): CleanupTarget => {
 		['name', 'tool', 'paths', 'kind', 'retention', 'enabled', 'risk'],
 		label
 	);
-	const kind = target.kind;
-	if (kind !== undefined && (typeof kind !== 'string' || !isArtifactKind(kind))) {
-		throw new Error(`${label}.kind must be directory, file, or any.`);
-	}
-	const risk = target.risk;
-	if (risk !== undefined && (typeof risk !== 'string' || !isRiskLevel(risk))) {
-		throw new Error(`${label}.risk must be normal or aggressive.`);
-	}
-	const parsedTarget: CleanupTarget = {
+	const kind = parseTargetKind(target.kind, label);
+	const risk = parseTargetRisk(target.risk, label);
+	const parsed: CleanupTarget = {
 		name: parseNonEmptyString(target.name, `${label}.name`),
 		tool: parseNonEmptyString(target.tool, `${label}.tool`),
 		paths: parseStringArray(target.paths, `${label}.paths`, false),
 	};
-	if (kind !== undefined) parsedTarget.kind = kind;
+	if (kind !== undefined) parsed.kind = kind;
 	if (target.retention !== undefined) {
-		parsedTarget.retention = parseRetentionPolicy(target.retention, `${label}.retention`);
+		parsed.retention = parseRetentionPolicy(target.retention, `${label}.retention`);
 	}
 	if (target.enabled !== undefined) {
-		parsedTarget.enabled = parseBoolean(target.enabled, `${label}.enabled`);
+		parsed.enabled = parseBoolean(target.enabled, `${label}.enabled`);
 	}
-	if (risk !== undefined) parsedTarget.risk = risk;
-	return parsedTarget;
+	if (risk !== undefined) parsed.risk = risk;
+	return parsed;
 };
 
-export const parseConfig = (value: unknown): Config => {
-	const config = assertRecord(value, 'config');
-	assertAllowedKeys(
-		config,
-		[
-			'aggressive',
-			'defaultRetention',
-			'overrides',
-			'presets',
-			'targetPaths',
-			'targets',
-			'usePresets',
-		],
-		'config'
-	);
-
-	let overrides: Record<string, RetentionPolicy> | undefined;
-	if (config.overrides !== undefined) {
-		const rawOverrides = assertRecord(config.overrides, 'overrides');
-		overrides = {};
-		for (const [name, policy] of Object.entries(rawOverrides)) {
-			parseNonEmptyString(name, 'overrides key');
-			overrides[name] = parseRetentionPolicy(policy, `overrides.${formatLogValue(name)}`);
-		}
+const parseOverrides = (value: unknown): Record<string, RetentionPolicy> => {
+	const raw = assertRecord(value, 'overrides');
+	const overrides: Record<string, RetentionPolicy> = {};
+	for (const [name, policy] of Object.entries(raw)) {
+		parseNonEmptyString(name, 'overrides key');
+		overrides[name] = parseRetentionPolicy(policy, `overrides.${formatLogValue(name)}`);
 	}
+	return overrides;
+};
 
-	let presets: Record<string, CleanupTarget[]> | undefined;
-	if (config.presets !== undefined) {
-		const rawPresets = assertRecord(config.presets, 'presets');
-		presets = {};
-		for (const [name, targets] of Object.entries(rawPresets)) {
-			parseNonEmptyString(name, 'presets key');
-			if (!Array.isArray(targets)) {
-				throw new Error(`presets.${formatLogValue(name)} must be an array of targets.`);
-			}
-			presets[name] = targets.map((target, index) =>
-				parseCleanupTarget(target, `presets.${formatLogValue(name)}[${index}]`)
-			);
+const parsePresets = (value: unknown): Record<string, CleanupTarget[]> => {
+	const raw = assertRecord(value, 'presets');
+	const presets: Record<string, CleanupTarget[]> = {};
+	for (const [name, targets] of Object.entries(raw)) {
+		parseNonEmptyString(name, 'presets key');
+		if (!Array.isArray(targets)) {
+			throw new Error(`presets.${formatLogValue(name)} must be an array of targets.`);
 		}
-	}
-
-	let targets: CleanupTarget[] | undefined;
-	if (config.targets !== undefined) {
-		if (!Array.isArray(config.targets)) {
-			throw new Error('targets must be an array.');
-		}
-		targets = config.targets.map((target, index) =>
-			parseCleanupTarget(target, `targets[${index}]`)
+		presets[name] = targets.map((target, index) =>
+			parseCleanupTarget(target, `presets.${formatLogValue(name)}[${index}]`)
 		);
 	}
-	let usePresets: string[] | undefined;
-	if (config.usePresets !== undefined) {
-		usePresets = parseStringArray(config.usePresets, 'usePresets');
-	}
-	for (const presetName of usePresets ?? []) {
+	return presets;
+};
+
+const parseConfigTargets = (value: unknown): CleanupTarget[] => {
+	if (!Array.isArray(value)) throw new Error('targets must be an array.');
+	return value.map((target, index) => parseCleanupTarget(target, `targets[${index}]`));
+};
+
+const validateUsePresetRefs = (
+	usePresets: string[],
+	presets: Record<string, CleanupTarget[]> | undefined
+): void => {
+	for (const presetName of usePresets) {
 		if (presets?.[presetName] === undefined) {
 			throw new Error(`usePresets references unknown preset: ${formatLogValue(presetName)}.`);
 		}
 	}
+};
 
-	const parsedConfig: Config = {};
+interface ParsedConfigParts {
+	overrides: Record<string, RetentionPolicy> | undefined;
+	presets: Record<string, CleanupTarget[]> | undefined;
+	targets: CleanupTarget[] | undefined;
+	usePresets: string[] | undefined;
+}
+
+const parseConfigParts = (config: Record<string, unknown>): ParsedConfigParts => {
+	const overrides = config.overrides === undefined ? undefined : parseOverrides(config.overrides);
+	const presets = config.presets === undefined ? undefined : parsePresets(config.presets);
+	const targets = config.targets === undefined ? undefined : parseConfigTargets(config.targets);
+	const usePresets =
+		config.usePresets === undefined
+			? undefined
+			: parseStringArray(config.usePresets, 'usePresets');
+	if (usePresets !== undefined) validateUsePresetRefs(usePresets, presets);
+	return { overrides, presets, targets, usePresets };
+};
+
+const assignConfigParts = (parsed: Config, parts: ParsedConfigParts): void => {
+	if (parts.overrides !== undefined) parsed.overrides = parts.overrides;
+	if (parts.presets !== undefined) parsed.presets = parts.presets;
+	if (parts.targets !== undefined) parsed.targets = parts.targets;
+	if (parts.usePresets !== undefined) parsed.usePresets = parts.usePresets;
+};
+
+const assembleConfig = (config: Record<string, unknown>, parts: ParsedConfigParts): Config => {
+	const parsed: Config = {};
 	if (config.aggressive !== undefined) {
-		parsedConfig.aggressive = parseBoolean(config.aggressive, 'aggressive');
+		parsed.aggressive = parseBoolean(config.aggressive, 'aggressive');
 	}
 	if (config.defaultRetention !== undefined) {
-		parsedConfig.defaultRetention = parseRetentionPolicy(
-			config.defaultRetention,
-			'defaultRetention'
-		);
+		parsed.defaultRetention = parseRetentionPolicy(config.defaultRetention, 'defaultRetention');
 	}
-	if (overrides !== undefined) parsedConfig.overrides = overrides;
-	if (presets !== undefined) parsedConfig.presets = presets;
 	if (config.targetPaths !== undefined) {
-		parsedConfig.targetPaths = parseStringArray(config.targetPaths, 'targetPaths');
+		parsed.targetPaths = parseStringArray(config.targetPaths, 'targetPaths');
 	}
-	if (targets !== undefined) parsedConfig.targets = targets;
-	if (usePresets !== undefined) parsedConfig.usePresets = usePresets;
-	return parsedConfig;
+	assignConfigParts(parsed, parts);
+	return parsed;
+};
+
+const parseConfig = (value: unknown): Config => {
+	const config = assertRecord(value, 'config');
+	assertAllowedKeys(config, CONFIG_KEYS, 'config');
+	return assembleConfig(config, parseConfigParts(config));
 };
 
 export const loadBundledConfig = (): Config => parseConfig(bundledConfig);
