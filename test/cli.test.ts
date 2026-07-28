@@ -274,11 +274,93 @@ describe('path safety', () => {
 });
 
 describe('CLI and packaged defaults', () => {
-	test('rejects an option used as the --config value with exit code 2', async () => {
-		const result = await runCli(['--config', '--dry-run']);
-		expect(result.exitCode).toBe(2);
-		expect(result.stderr).toContain('--config requires a path argument');
-	});
+	const createSentinelFixture = (): {
+		configPath: string;
+		sentinel: string;
+		sentinelPayload: string;
+	} => {
+		const root = createTemporaryRoot();
+		const artifactRoot = path.join(root, 'artifacts');
+		fs.mkdirSync(artifactRoot);
+		const sentinel = path.join(artifactRoot, 'sentinel.log');
+		const sentinelPayload = 'do-not-touch';
+		fs.writeFileSync(sentinel, sentinelPayload);
+		const configPath = writeConfig(root, [
+			targetFor(artifactRoot, { retention: { allowEmpty: true, keepCount: 0 } }),
+		]);
+		return { configPath, sentinel, sentinelPayload };
+	};
+
+	const expectSentinelUnchanged = (sentinel: string, payload: string): void => {
+		expect(fs.existsSync(sentinel)).toBeTrue();
+		expect(fs.readFileSync(sentinel, 'utf8')).toBe(payload);
+	};
+
+	const helpCases = [
+		{ flag: '--help', label: '--help' },
+		{ flag: '-h', label: '-h' },
+	] as const;
+
+	for (const { flag, label } of helpCases) {
+		test(`prints help for ${label} without processing targets`, async () => {
+			const { configPath, sentinel, sentinelPayload } = createSentinelFixture();
+
+			const result = await runCli([flag, '--config', configPath, '--apply']);
+			expect(result.exitCode).toBe(0);
+			expect(result.stdout).toContain('--config <path>');
+			expect(result.stdout).toContain('--dry-run');
+			expect(result.stdout).toContain('--apply');
+			expect(result.stdout).toContain('--help, -h');
+			expect(result.stdout).not.toContain('Starting AI Cleaner');
+			expect(result.stdout).not.toContain('DRY RUN MODE ENABLED');
+			expect(result.stdout).not.toContain('Cleanup complete');
+			expect(result.stdout).not.toContain('[DRY RUN]');
+			expectSentinelUnchanged(sentinel, sentinelPayload);
+		});
+	}
+
+	const argumentErrorCases: {
+		args: (configPath: string) => string[];
+		errorMarker: string;
+		name: string;
+	}[] = [
+		{
+			args: (configPath) => ['--config', configPath, '--not-a-real-flag'],
+			errorMarker: 'Unknown argument: --not-a-real-flag',
+			name: 'rejects an unknown option with exit code 2',
+		},
+		{
+			args: () => ['--config'],
+			errorMarker: '--config requires a path argument',
+			name: 'rejects a terminal --config without a path with exit code 2',
+		},
+		{
+			args: () => ['--config', '--dry-run'],
+			errorMarker: '--config requires a path argument',
+			name: 'rejects an option used as the --config value with exit code 2',
+		},
+		{
+			args: (configPath) => ['--config', configPath, '--dry-run', '--apply'],
+			errorMarker: '--dry-run and --apply cannot be used together',
+			name: 'rejects --dry-run combined with --apply with exit code 2',
+		},
+	];
+
+	for (const errorCase of argumentErrorCases) {
+		test(errorCase.name, async () => {
+			const { configPath, sentinel, sentinelPayload } = createSentinelFixture();
+
+			const result = await runCli(errorCase.args(configPath));
+			expect(result.exitCode).toBe(2);
+			expect(result.stderr).toContain(errorCase.errorMarker);
+			expect(result.stderr).toContain('--help, -h');
+			expect(result.stdout).not.toContain('Starting AI Cleaner');
+			expect(result.stdout).not.toContain('DRY RUN MODE ENABLED');
+			expect(result.stdout).not.toContain('Cleanup complete');
+			expect(result.stdout).not.toContain('[DRY RUN]');
+			expectSentinelUnchanged(sentinel, sentinelPayload);
+		});
+	}
 
 	test('loads the bundled config outside the repository directory', async () => {
 		const root = createTemporaryRoot();

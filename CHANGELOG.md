@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Scenario 1 CLI argument coverage is fully automated: table-driven cases in `test/cli.test.ts`
+  cover `--help`, `-h`, unknown options, terminal `--config`, option-as-config-value, and
+  `--dry-run --apply` with exact exit codes, help/error markers, no target processing, and
+  disposable sentinel preservation. `.aidd/testing-scenarios.md` lists each test name;
+  `.aidd/assertions.md` records the verified branch coverage. Source feature
+  `cli-execution-modes` requires these direct cases on rebuild (feature
+  `audit-testing-1785207355-cli-argument-scenario-is-only-partially-automated`).
 - Disabled Bun automatic `.env` loading so a working-directory dotenv file cannot redirect
   configured `$VAR` / `%VAR%` cleanup roots. Added root `bunfig.toml` with `env = false`, and
   pass `--no-env-file` on the executable shebang, `package.json` `start` script, CLI test
