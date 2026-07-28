@@ -12,6 +12,17 @@ All notable changes to this project are documented here. The format follows
   and runs the packed entry point help and default dry-run paths from a working directory outside
   the package. `build:verify-package` invokes it; `build` runs it after the existing bundle gate so
   `smoke:qc` verifies the artifact users receive, not only `dist/ai-cleaner.js`.
+- `test/hooks.test.ts` exercises the pre-push capability gate: version-tag pushes without
+  `smoke:screenshots` skip the screenshot stage, empty scripts stay not-applicable, defined
+  scripts still invoke the guard, and AIDD history-guard failures still fail the push.
+
+### Fixed
+
+- `.githooks/pre-push` no longer requires an impossible UI screenshot workflow for version tags.
+  The shared `screenshot-guard.sh` stays byte-identical with AIDD/Spernakit, but the wrapper
+  invokes it only when `package.json` defines a non-empty `smoke:screenshots` script; otherwise
+  it prints `screenshot guard: not applicable` and continues after the AIDD history guard
+  (feature `audit-devops-1785207355-version-tag-hook-requires-an-unavailable-ui-screenshot-workflow`).
 
 ## [1.2.0] - 2026-07-27
 

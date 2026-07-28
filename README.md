@@ -169,9 +169,15 @@ bun run smoke:qc
 verifies the bundle from a temporary working directory outside the repository, and verifies the
 packed package tarball (contents plus external-cwd help/dry-run) that users actually receive.
 
-The pre-push hook also protects local AIDD metadata. Repositories without a push remote can keep
+The pre-push hook protects local AIDD metadata. Repositories without a push remote can keep
 their `.aidd` blueprint tracked locally. If a push remote is configured, the hook refuses tracked
 or historical `.aidd` content and fails closed when it cannot inspect the pushed revision range.
+
+Screenshot capture is package-capability gated. The shared `.githooks/screenshot-guard.sh` is kept
+for fleet identity with AIDD/Spernakit, but `.githooks/pre-push` invokes it only when
+`package.json` defines a non-empty `smoke:screenshots` script. This CLI has no UI and no capture
+workflow, so version-tag pushes print `screenshot guard: not applicable` and continue without a
+bypass flag. Projects that do ship a UI capture script keep the full tag-screenshot requirement.
 
 ## License
 

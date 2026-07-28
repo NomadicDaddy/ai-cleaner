@@ -6,6 +6,12 @@
 #
 # If a repository grows its own pre-push checks, chain them here rather than replacing this file —
 # core.hooksPath allows exactly one pre-push, so an overwrite silently disables the guards.
+#
+# Screenshot capture is package-capability gated. The shared screenshot-guard.sh stays
+# byte-identical with AIDD/Spernakit for fleet identity, but it is only invoked when this
+# package defines a non-empty `smoke:screenshots` script. CLIs and other non-UI packages
+# print `screenshot guard: not applicable` and continue; they must not hard-fail version tags
+# for an un-runnable UI workflow.
 set -euo pipefail
 
 hooks_dir="$(dirname "$0")"
@@ -14,7 +20,12 @@ refs="$(cat)"
 echo "pre-push: aidd history guard"
 printf '%s\n' "$refs" | bash "$hooks_dir/aidd-history-guard.sh" "${1:-origin}"
 
-echo "pre-push: screenshot guard"
-printf '%s\n' "$refs" | bash "$hooks_dir/screenshot-guard.sh"
+# Non-empty script value only — empty string or missing key is not a capture workflow.
+if [ -f package.json ] && grep -Eq '"smoke:screenshots"[[:space:]]*:[[:space:]]*"[^[:space:]"][^"]*"' package.json; then
+	echo "pre-push: screenshot guard"
+	printf '%s\n' "$refs" | bash "$hooks_dir/screenshot-guard.sh"
+else
+	echo "pre-push: screenshot guard: not applicable"
+fi
 
 echo "pre-push: passed"
