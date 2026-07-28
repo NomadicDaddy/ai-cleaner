@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `keepDays: 0` now requires `allowEmpty: true`, matching `keepCount: 0`. Without confirmation,
+  config parsing fails closed before any artifact is selected; with confirmation, dry-run remains
+  the default. Docs and assertions state both full-deletion forms. Regression coverage in
+  `test/cli.test.ts` (feature
+  `audit-security-1785207355-keepdays-zero-bypasses-full-deletion-confirmation`).
 - Filesystem and OS error diagnostics no longer leak raw control characters on stderr.
   `formatErrorMessage` in `src/reporting.ts` extracts the upstream message and applies
   `formatLogValue` once at emission in `index.ts` and `src/cleanup.ts`. Composed exceptions

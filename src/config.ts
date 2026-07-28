@@ -113,14 +113,21 @@ const assertExclusiveRetention = (keepCount: unknown, keepDays: unknown, label: 
 	}
 };
 
-const assertKeepCountZeroAllowed = (
+const assertFullDeletionConfirmed = (
 	keepCount: number | undefined,
+	keepDays: number | undefined,
 	allowEmpty: boolean | undefined,
 	label: string
 ): void => {
 	if (keepCount === 0 && allowEmpty !== true) {
 		throw new Error(
 			`${label}.keepCount is 0 (would delete all matching artifacts). ` +
+				'Set allowEmpty: true on the policy to confirm.'
+		);
+	}
+	if (keepDays === 0 && allowEmpty !== true) {
+		throw new Error(
+			`${label}.keepDays is 0 (would delete all matching artifacts). ` +
 				'Set allowEmpty: true on the policy to confirm.'
 		);
 	}
@@ -138,7 +145,7 @@ const parseRetentionPolicy = (value: unknown, label: string): RetentionPolicy =>
 		policy.allowEmpty === undefined
 			? undefined
 			: parseBoolean(policy.allowEmpty, `${label}.allowEmpty`);
-	assertKeepCountZeroAllowed(keepCount, allowEmpty, label);
+	assertFullDeletionConfirmed(keepCount, keepDays, allowEmpty, label);
 	return {
 		...(keepCount !== undefined ? { keepCount } : {}),
 		...(keepDays !== undefined ? { keepDays } : {}),

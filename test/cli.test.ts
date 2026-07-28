@@ -150,6 +150,40 @@ describe('configuration validation', () => {
 		expect(result.exitCode).toBe(1);
 		expect(result.stderr).toContain('Set allowEmpty: true');
 	});
+
+	test('rejects keepDays zero without allowEmpty', async () => {
+		const root = createTemporaryRoot();
+		const artifactRoot = path.join(root, 'artifacts');
+		fs.mkdirSync(artifactRoot);
+		const configPath = writeConfig(root, [
+			targetFor(artifactRoot, { retention: { keepDays: 0 } }),
+		]);
+
+		const result = await runCli(['--config', configPath]);
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain('keepDays is 0');
+		expect(result.stderr).toContain('Set allowEmpty: true');
+	});
+
+	test('accepts keepDays zero with allowEmpty and defaults to dry-run', async () => {
+		const root = createTemporaryRoot();
+		const artifactRoot = path.join(root, 'artifacts');
+		fs.mkdirSync(artifactRoot);
+		const artifact = path.join(artifactRoot, 'session.log');
+		fs.writeFileSync(artifact, 'payload');
+		const configPath = writeConfig(root, [
+			targetFor(artifactRoot, { retention: { allowEmpty: true, keepDays: 0 } }),
+		]);
+
+		const preview = await runCli(['--config', configPath]);
+		expect(preview.exitCode).toBe(0);
+		expect(preview.stdout).toContain('[DRY RUN] Would delete:');
+		expect(fs.existsSync(artifact)).toBeTrue();
+
+		const applied = await runCli(['--config', configPath, '--apply']);
+		expect(applied.exitCode).toBe(0);
+		expect(fs.existsSync(artifact)).toBeFalse();
+	});
 });
 
 describe('path safety', () => {

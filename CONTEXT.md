@@ -68,7 +68,8 @@ active.
 
 A rule that selects which Artifacts to delete. It uses either `keepCount` (keep the N
 newest immediate entries) or `keepDays` (delete entries older than N days), but never
-both. `allowEmpty: true` confirms the intent to delete everything when `keepCount: 0`.
+both. `allowEmpty: true` confirms the intent to delete everything when `keepCount: 0`
+or `keepDays: 0` (both are full-deletion forms).
 
 ### Risk Level
 

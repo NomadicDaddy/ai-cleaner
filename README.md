@@ -94,7 +94,7 @@ Each policy defines exactly one retention rule:
 
 - `keepCount: N` keeps the N newest immediate entries.
 - `keepDays: N` removes immediate entries older than N days.
-- `allowEmpty: true` is required with `keepCount: 0`.
+- `allowEmpty: true` is required with `keepCount: 0` or `keepDays: 0` (both are full-deletion forms).
 
 Targets do not recurse to discover retention units. Point each target at a directory whose
 immediate children are independent disposable artifacts. Recursive deletion happens only after an
