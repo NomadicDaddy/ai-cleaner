@@ -2,7 +2,7 @@ import type * as fs from 'node:fs';
 
 import * as path from 'node:path';
 
-import type { ArtifactKind, RetentionPolicy } from './config.ts';
+import type { ArtifactKind, CleanupTarget, RetentionPolicy } from './config.ts';
 import type {
 	Artifact,
 	FilesystemAdapter,
@@ -23,6 +23,33 @@ export interface ProcessResult {
 	skipped: number;
 	failed: number;
 }
+
+/** Whether a target should enter filesystem planning and deletion work. */
+export const isTargetProcessable = (target: CleanupTarget, aggressive: boolean): boolean =>
+	target.enabled !== false && !(target.risk === 'aggressive' && !aggressive);
+
+/**
+ * Log and count a disabled or inactive-aggressive target without any filesystem
+ * expansion, canonicalization, inspection, or overlap checks on its paths.
+ */
+export const skipInactiveTarget = (target: CleanupTarget, aggressive: boolean): ProcessResult => {
+	const result: ProcessResult = { matched: 0, skipped: 0, failed: 0 };
+	if (target.enabled === false) {
+		console.log(
+			`\nSkipping disabled target: ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}`
+		);
+		result.skipped++;
+		return result;
+	}
+	if (target.risk === 'aggressive' && !aggressive) {
+		console.log(
+			`\nSkipping aggressive target: ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}`
+		);
+		result.skipped++;
+		return result;
+	}
+	return result;
+};
 
 const matchesKind = (artifact: Artifact, kind: ArtifactKind): boolean =>
 	kind === 'any' || (kind === 'directory' ? artifact.isDirectory : artifact.isFile);
@@ -120,22 +147,13 @@ export const processTarget = (
 	const { target, roots } = plannedTarget;
 	const policy = target.retention ?? defaultRetention;
 	const kind = target.kind ?? 'directory';
-	const result: ProcessResult = { matched: 0, skipped: 0, failed: 0 };
+	// Defensive: run.ts partitions inactive targets before planning; direct callers
+	// of processTarget still get the skip contract without filesystem work beyond planning.
+	if (!isTargetProcessable(target, aggressive)) {
+		return skipInactiveTarget(target, aggressive);
+	}
 
-	if (target.enabled === false) {
-		console.log(
-			`\nSkipping disabled target: ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}`
-		);
-		result.skipped++;
-		return result;
-	}
-	if (target.risk === 'aggressive' && !aggressive) {
-		console.log(
-			`\nSkipping aggressive target: ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}`
-		);
-		result.skipped++;
-		return result;
-	}
+	const result: ProcessResult = { matched: 0, skipped: 0, failed: 0 };
 
 	console.log(`\nAnalyzing ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}...`);
 	console.log(`Policy: ${JSON.stringify(policy)}`);

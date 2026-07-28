@@ -166,6 +166,98 @@ describe('disabled targets', () => {
 		expect(result.stdout).toContain('Skipped: 1');
 		expect(result.stdout).toContain('Matched for deletion: 1');
 	});
+
+	test('inactive target with unavailable variable does not abort active siblings', async () => {
+		const root = createTemporaryRoot();
+		const activeRoot = path.join(root, 'active');
+		fs.mkdirSync(activeRoot);
+		fs.writeFileSync(path.join(activeRoot, 'old.log'), 'a');
+		delete process.env['AI_CLEANER_INACTIVE_MISSING_VAR'];
+
+		const configPath = writeConfig(root, [
+			{
+				enabled: false,
+				kind: 'any',
+				name: 'Inactive missing env',
+				paths: ['$AI_CLEANER_INACTIVE_MISSING_VAR/sub'],
+				retention: { allowEmpty: true, keepCount: 0 },
+				tool: 'inactive',
+			},
+			targetFor(activeRoot, { name: 'Active sibling' }),
+			{
+				kind: 'any',
+				name: 'Inactive aggressive missing env',
+				paths: ['$AI_CLEANER_INACTIVE_MISSING_VAR/other'],
+				retention: { allowEmpty: true, keepCount: 0 },
+				risk: 'aggressive',
+				tool: 'aggressive-inactive',
+			},
+		]);
+
+		const result = await runCli(['--config', configPath, '--apply']);
+		expect(result.exitCode).toBe(0);
+		expect(result.stderr).not.toContain('unavailable environment variable');
+		expect(result.stdout).toContain('Skipping disabled target');
+		expect(result.stdout).toContain('Skipping aggressive target');
+		expect(result.stdout).toContain('Active sibling');
+		expect(result.stdout).toContain('Skipped: 2');
+		expect(result.stdout).toContain('Matched for deletion: 1');
+		expect(fs.existsSync(path.join(activeRoot, 'old.log'))).toBeFalse();
+	});
+
+	test('inactive target with overlapping path does not abort active siblings', async () => {
+		const root = createTemporaryRoot();
+		const parentRoot = path.join(root, 'parent');
+		const childRoot = path.join(parentRoot, 'child');
+		const activeRoot = path.join(root, 'active');
+		fs.mkdirSync(childRoot, { recursive: true });
+		fs.mkdirSync(activeRoot);
+		fs.writeFileSync(path.join(childRoot, 'nested.log'), 'n');
+		fs.writeFileSync(path.join(activeRoot, 'old.log'), 'a');
+
+		const configPath = writeConfig(root, [
+			{ ...targetFor(parentRoot, { name: 'Disabled parent' }), enabled: false },
+			{ ...targetFor(childRoot, { name: 'Disabled child' }), enabled: false },
+			targetFor(activeRoot, { name: 'Active sibling' }),
+		]);
+
+		const result = await runCli(['--config', configPath, '--apply']);
+		expect(result.exitCode).toBe(0);
+		expect(result.stderr).not.toContain('Cleanup roots overlap');
+		expect(result.stdout).toContain('Skipping disabled target');
+		expect(result.stdout).toContain('Active sibling');
+		expect(result.stdout).toContain('Skipped: 2');
+		expect(result.stdout).toContain('Matched for deletion: 1');
+		expect(fs.existsSync(path.join(childRoot, 'nested.log'))).toBeTrue();
+		expect(fs.existsSync(path.join(activeRoot, 'old.log'))).toBeFalse();
+	});
+
+	test('inactive dangerous path does not abort active siblings', async () => {
+		const root = createTemporaryRoot();
+		const activeRoot = path.join(root, 'active');
+		fs.mkdirSync(activeRoot);
+		fs.writeFileSync(path.join(activeRoot, 'old.log'), 'a');
+
+		const dangerousPath = process.platform === 'win32' ? 'C:\\Users' : '/home';
+		const configPath = writeConfig(root, [
+			{
+				enabled: false,
+				kind: 'any',
+				name: 'Disabled dangerous',
+				paths: [dangerousPath],
+				retention: { allowEmpty: true, keepCount: 0 },
+				tool: 'dangerous',
+			},
+			targetFor(activeRoot, { name: 'Active sibling' }),
+		]);
+
+		const result = await runCli(['--config', configPath, '--apply']);
+		expect(result.exitCode).toBe(0);
+		expect(result.stderr).not.toContain('Refusing dangerous cleanup root');
+		expect(result.stdout).toContain('Skipping disabled target');
+		expect(result.stdout).toContain('Matched for deletion: 1');
+		expect(fs.existsSync(path.join(activeRoot, 'old.log'))).toBeFalse();
+	});
 });
 
 describe('unavailable environment variables', () => {

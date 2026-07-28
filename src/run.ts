@@ -2,7 +2,7 @@ import type { ProcessResult } from './cleanup.ts';
 import type { Config } from './config.ts';
 import type { FilesystemAdapter } from './filesystem-safety.ts';
 
-import { processTarget } from './cleanup.ts';
+import { isTargetProcessable, processTarget, skipInactiveTarget } from './cleanup.ts';
 import { CliError, HELP_TEXT, parseArgs } from './cli.ts';
 import { DEFAULT_RETENTION, loadBundledConfig, loadConfig } from './config.ts';
 import {
@@ -40,8 +40,13 @@ export const run = (fsAdapter: FilesystemAdapter = defaultFilesystemAdapter): nu
 	}
 
 	const explicitTargets = [...presetTargetsFromConfig(config), ...(config.targets ?? [])];
+	// Only processable explicit targets claim paths for legacy dedup — inactive
+	// targets must not expand environment variables or resolve filesystem paths.
+	const processableExplicit = explicitTargets.filter((target) =>
+		isTargetProcessable(target, aggressive)
+	);
 	const explicitPaths = new Set(
-		explicitTargets.flatMap((target) =>
+		processableExplicit.flatMap((target) =>
 			target.paths.map((configuredPath) => normalizeForCompare(expandPath(configuredPath)))
 		)
 	);
@@ -50,11 +55,27 @@ export const run = (fsAdapter: FilesystemAdapter = defaultFilesystemAdapter): nu
 		console.log('No cleanup targets configured.');
 		return 0;
 	}
-	const plan = buildTargetPlan(targets, fsAdapter);
+
+	// Partition before planning so disabled / inactive-aggressive targets never
+	// expand, canonicalize, inspect, or overlap-check their paths. Iterate the
+	// full configured list afterward so skip/analysis messages keep order.
+	const processableTargets = targets.filter((target) => isTargetProcessable(target, aggressive));
+	const plan = buildTargetPlan(processableTargets, fsAdapter);
 	const totals: ProcessResult = { matched: 0, skipped: 0, failed: 0 };
-	for (const target of plan) {
+	let planIndex = 0;
+	for (const target of targets) {
+		if (!isTargetProcessable(target, aggressive)) {
+			const skipped = skipInactiveTarget(target, aggressive);
+			totals.skipped += skipped.skipped;
+			continue;
+		}
+		const planned = plan[planIndex];
+		planIndex++;
+		if (planned === undefined) {
+			throw new Error('Internal error: planned target missing after partition.');
+		}
 		const result = processTarget(
-			target,
+			planned,
 			config.defaultRetention ?? DEFAULT_RETENTION,
 			options.apply,
 			aggressive,
