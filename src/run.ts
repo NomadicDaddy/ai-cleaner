@@ -1,16 +1,12 @@
 import type { ProcessResult } from './cleanup.ts';
 import type { Config } from './config.ts';
-import type { FilesystemAdapter } from './filesystem-safety.ts';
+import type { FilesystemAdapter } from './filesystem-adapter.ts';
 
 import { isTargetProcessable, processTarget, skipInactiveTarget } from './cleanup.ts';
 import { CliError, HELP_TEXT, parseArgs } from './cli.ts';
 import { DEFAULT_RETENTION, loadBundledConfig, loadConfig } from './config.ts';
-import {
-	buildTargetPlan,
-	defaultFilesystemAdapter,
-	expandPath,
-	normalizeForCompare,
-} from './filesystem-safety.ts';
+import { defaultFilesystemAdapter } from './filesystem-adapter.ts';
+import { buildTargetPlan, expandPath, normalizeForCompare } from './filesystem-safety.ts';
 import { legacyTargetsFromConfig, presetTargetsFromConfig } from './targets.ts';
 
 export const run = (fsAdapter: FilesystemAdapter = defaultFilesystemAdapter): number => {

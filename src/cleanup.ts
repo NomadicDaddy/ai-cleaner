@@ -3,19 +3,12 @@ import type * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import type { ArtifactKind, CleanupTarget, RetentionPolicy } from './config.ts';
-import type {
-	Artifact,
-	FilesystemAdapter,
-	PlannedRoot,
-	PlannedTarget,
-} from './filesystem-safety.ts';
+import type { FilesystemAdapter } from './filesystem-adapter.ts';
+import type { Artifact, PlannedRoot, PlannedTarget } from './filesystem-safety.ts';
 
 import { isRecord } from './config.ts';
-import {
-	defaultFilesystemAdapter,
-	inspectProtectedSubtree,
-	revalidateContainment,
-} from './filesystem-safety.ts';
+import { defaultFilesystemAdapter } from './filesystem-adapter.ts';
+import { inspectProtectedSubtree, revalidateContainment } from './filesystem-safety.ts';
 import { errorMessage, formatLogValue } from './reporting.ts';
 
 export interface ProcessResult {

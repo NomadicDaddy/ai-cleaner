@@ -1,10 +1,13 @@
-import * as fs from 'node:fs';
+import type * as fs from 'node:fs';
+
 import * as os from 'node:os';
 import * as path from 'node:path';
 
 import type { CleanupTarget } from './config.ts';
+import type { FilesystemAdapter } from './filesystem-adapter.ts';
 
 import { isRecord } from './config.ts';
+import { defaultFilesystemAdapter } from './filesystem-adapter.ts';
 import { errorMessage, formatLogValue } from './reporting.ts';
 
 export interface PlannedRoot {
@@ -25,26 +28,6 @@ export interface Artifact {
 	isDirectory: boolean;
 	isFile: boolean;
 }
-
-/**
- * Internal filesystem adapter that wraps every blocking filesystem call used by
- * the safety pipeline. Threading this through run.ts lets the release-
- * verification test inject lstat, readdir, realpath, and rm failures and swap
- * artifacts between containment checks without touching the real filesystem.
- */
-export interface FilesystemAdapter {
-	lstatSync: (path: string) => fs.Stats;
-	readdirSync: (path: string) => fs.Dirent[];
-	realpathSync: (path: string) => string;
-	rmSync: (path: string, options: { force: boolean; recursive: boolean }) => void;
-}
-
-export const defaultFilesystemAdapter: FilesystemAdapter = {
-	lstatSync: (p) => fs.lstatSync(p),
-	readdirSync: (p) => fs.readdirSync(p, { withFileTypes: true }),
-	realpathSync: (p) => fs.realpathSync.native(p),
-	rmSync: (p, options) => fs.rmSync(p, options),
-};
 
 export const normalizeForCompare = (candidatePath: string): string => {
 	const resolved = path.resolve(candidatePath);

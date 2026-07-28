@@ -2,8 +2,10 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import type { FilesystemAdapter } from '../src/filesystem-adapter.ts';
+
 import { processTarget } from '../src/cleanup.ts';
-import { buildTargetPlan, type FilesystemAdapter } from '../src/filesystem-safety.ts';
+import { buildTargetPlan } from '../src/filesystem-safety.ts';
 import {
 	cleanupTemporaryRoots,
 	createTemporaryRoot,

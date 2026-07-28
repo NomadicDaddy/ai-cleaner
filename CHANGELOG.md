@@ -5,6 +5,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Extracted `FilesystemAdapter` and `defaultFilesystemAdapter` into private
+  `src/filesystem-adapter.ts` so every non-test TypeScript source file stays under 300 lines.
+  Path planning remains in `src/filesystem-safety.ts`; cleanup, run, and release-verification
+  tests import the adapter directly. No package export was added (feature
+  `audit-reorg-1785207357-filesystem-safety-module-exceeds-the-300-line-cap`).
+
 ### Added
 
 - `scripts/verify-package.ts` packs the published tarball with `bun pm pack`, asserts required
