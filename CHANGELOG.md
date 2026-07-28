@@ -5,6 +5,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/verify-package.ts` packs the published tarball with `bun pm pack`, asserts required
+  package contents (including every `src/` runtime module without hard-coding the module count),
+  and runs the packed entry point help and default dry-run paths from a working directory outside
+  the package. `build:verify-package` invokes it; `build` runs it after the existing bundle gate so
+  `smoke:qc` verifies the artifact users receive, not only `dist/ai-cleaner.js`.
+
 ## [1.2.0] - 2026-07-27
 
 ### Added

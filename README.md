@@ -165,8 +165,9 @@ bun run build
 bun run smoke:qc
 ```
 
-`smoke:qc` checks formatting, lint, and types, runs all Bun test suites, then builds the bundle and
-executes it from a temporary working directory outside the repository.
+`smoke:qc` checks formatting, lint, and types, runs all Bun test suites, then builds the bundle,
+verifies the bundle from a temporary working directory outside the repository, and verifies the
+packed package tarball (contents plus external-cwd help/dry-run) that users actually receive.
 
 The pre-push hook also protects local AIDD metadata. Repositories without a push remote can keep
 their `.aidd` blueprint tracked locally. If a push remote is configured, the hook refuses tracked
