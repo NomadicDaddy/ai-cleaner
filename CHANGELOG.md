@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Tier C TypeScript toolchain drift closed: `eslint` `10.8.0` and `globals` `17.8.0` with
+  regenerated `bun.lock`; `tsconfig` module `ESNext` / `moduleResolution` `bundler` / `noEmit` /
+  target `ES2022`; lint covers `scripts/` and `eslint.config.js`; `toSorted` replaced with
+  `slice().sort()` under the ES2022 target (feature
+  `audit-ts-standards-1785207356-tier-c-typescript-toolchain-contract-has-drifted`).
 - Scenario 1 CLI argument coverage is fully automated: table-driven cases in `test/cli.test.ts`
   cover `--help`, `-h`, unknown options, terminal `--config`, option-as-config-value, and
   `--dry-run --apply` with exact exit codes, help/error markers, no target processing, and

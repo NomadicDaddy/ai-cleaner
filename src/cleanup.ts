@@ -160,7 +160,8 @@ const listArtifacts = (
 const selectArtifactsToDelete = (artifacts: Artifact[], policy: RetentionPolicy): Artifact[] => {
 	if (policy.keepCount !== undefined) {
 		return artifacts
-			.toSorted((first, second) => second.time - first.time)
+			.slice()
+			.sort((first, second) => second.time - first.time)
 			.slice(policy.keepCount);
 	}
 	const cutoff = Date.now() - (policy.keepDays ?? 0) * 24 * 60 * 60 * 1000;
