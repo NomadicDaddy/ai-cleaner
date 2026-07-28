@@ -47,11 +47,7 @@ export const skipInactiveTarget = (target: CleanupTarget, aggressive: boolean): 
 const matchesKind = (artifact: Artifact, kind: ArtifactKind): boolean =>
 	kind === 'any' || (kind === 'directory' ? artifact.isDirectory : artifact.isFile);
 
-type RootInspection =
-	| { status: 'missing' }
-	| { status: 'failed' }
-	| { status: 'file'; artifact: Artifact }
-	| { status: 'directory' };
+type RootInspection = { status: 'missing' } | { status: 'failed' } | { status: 'directory' };
 
 const lstatRoot = (root: PlannedRoot, fsAdapter: FilesystemAdapter): fs.Stats | RootInspection => {
 	try {
@@ -66,25 +62,7 @@ const lstatRoot = (root: PlannedRoot, fsAdapter: FilesystemAdapter): fs.Stats | 
 	}
 };
 
-const fileRootInspection = (
-	rootPath: string,
-	rootStats: fs.Stats,
-	kind: ArtifactKind
-): RootInspection => {
-	const artifact: Artifact = {
-		path: rootPath,
-		time: rootStats.mtimeMs,
-		isDirectory: false,
-		isFile: rootStats.isFile(),
-	};
-	return matchesKind(artifact, kind) ? { status: 'file', artifact } : { status: 'missing' };
-};
-
-const inspectRoot = (
-	root: PlannedRoot,
-	kind: ArtifactKind,
-	fsAdapter: FilesystemAdapter
-): RootInspection => {
+const inspectRoot = (root: PlannedRoot, fsAdapter: FilesystemAdapter): RootInspection => {
 	const rootStats = lstatRoot(root, fsAdapter);
 	if (!('isSymbolicLink' in rootStats)) {
 		return rootStats;
@@ -95,8 +73,10 @@ const inspectRoot = (
 		);
 		return { status: 'failed' };
 	}
+	// Defensive: planRoot already requires directories; refuse any non-directory that slips through.
 	if (!rootStats.isDirectory()) {
-		return fileRootInspection(root.resolvedPath, rootStats, kind);
+		console.error(`Refusing non-directory cleanup root: ${formatLogValue(root.resolvedPath)}`);
+		return { status: 'failed' };
 	}
 	return { status: 'directory' };
 };
@@ -163,15 +143,12 @@ const listArtifacts = (
 	kind: ArtifactKind,
 	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
 ): { artifacts: Artifact[]; failed: number } => {
-	const inspection = inspectRoot(root, kind, fsAdapter);
+	const inspection = inspectRoot(root, fsAdapter);
 	if (inspection.status === 'missing') {
 		return { artifacts: [], failed: 0 };
 	}
 	if (inspection.status === 'failed') {
 		return { artifacts: [], failed: 1 };
-	}
-	if (inspection.status === 'file') {
-		return { artifacts: [inspection.artifact], failed: 0 };
 	}
 	return collectDirectoryArtifacts(root, kind, fsAdapter);
 };

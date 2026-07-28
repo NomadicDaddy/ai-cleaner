@@ -260,6 +260,25 @@ describe('disabled targets', () => {
 		expect(result.stdout).toContain('Matched for deletion: 1');
 		expect(fs.existsSync(path.join(activeRoot, 'old.log'))).toBeFalse();
 	});
+
+	test('active protected system descendant aborts planning with exit 1', async () => {
+		const root = createTemporaryRoot();
+		const activeRoot = path.join(root, 'active');
+		fs.mkdirSync(activeRoot);
+		fs.writeFileSync(path.join(activeRoot, 'keep.log'), 'safe');
+
+		const protectedDescendant =
+			process.platform === 'win32' ? 'C:\\Windows\\System32' : '/etc/ssl';
+		const configPath = writeConfig(root, [
+			targetFor(protectedDescendant, { name: 'Protected descendant', tool: 'sys' }),
+			targetFor(activeRoot, { name: 'Active sibling' }),
+		]);
+
+		const result = await runCli(['--config', configPath, '--apply']);
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain('dangerous cleanup root');
+		expect(fs.existsSync(path.join(activeRoot, 'keep.log'))).toBeTrue();
+	});
 });
 
 describe('unavailable environment variables', () => {
@@ -655,6 +674,43 @@ describe('filesystem adapter fault injection', () => {
 		expect(result.matched).toBe(1);
 		// Exit code 1 because failed > 0
 		expect(result.failed > 0).toBeTrue();
+		fs.rmSync(tempRoot, { force: true, recursive: true });
+	});
+
+	test('defensive listArtifacts refuses a non-directory planned root and counts failed', () => {
+		const tempRoot = createTemporaryRoot();
+		const fileRoot = path.join(tempRoot, 'file-root.txt');
+		fs.writeFileSync(fileRoot, 'not a directory');
+		const resolved = path.resolve(fileRoot);
+		// Bypass planRoot directory enforcement to exercise the listArtifacts guard.
+		const planned = {
+			target: {
+				kind: 'any' as const,
+				name: 'File root',
+				paths: [fileRoot],
+				tool: 'test',
+				retention: { allowEmpty: true, keepCount: 0 },
+			},
+			roots: [
+				{
+					canonicalPath: resolved,
+					configuredPath: fileRoot,
+					label: 'defensive-file-root',
+					resolvedPath: resolved,
+				},
+			],
+		};
+
+		const result = processTarget(
+			planned,
+			{ allowEmpty: true, keepCount: 0 },
+			true,
+			false,
+			realAdapter
+		);
+		expect(result.failed).toBe(1);
+		expect(result.matched).toBe(0);
+		expect(fs.existsSync(fileRoot)).toBeTrue();
 		fs.rmSync(tempRoot, { force: true, recursive: true });
 	});
 });

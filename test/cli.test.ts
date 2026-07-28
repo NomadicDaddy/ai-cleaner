@@ -198,6 +198,45 @@ describe('path safety', () => {
 		expect(result.exitCode).toBe(1);
 		expect(result.stderr).toContain('symbolic link or junction');
 	});
+
+	test('rejects protected system-tree descendants and exact-only containers', async () => {
+		const root = createTemporaryRoot();
+		const protectedDescendant =
+			process.platform === 'win32'
+				? 'C:\\Windows\\Temp'
+				: '/usr/local/share/ai-cleaner-probe';
+		const exactOnlyContainer = process.platform === 'win32' ? 'C:\\Users' : '/home';
+
+		const descendantConfig = writeConfig(root, [targetFor(protectedDescendant)]);
+		const descendantResult = await runCli(['--config', descendantConfig]);
+		expect(descendantResult.exitCode).toBe(1);
+		expect(descendantResult.stderr).toContain('dangerous cleanup root');
+
+		const containerConfig = writeConfig(root, [
+			targetFor(exactOnlyContainer, { name: 'Exact container' }),
+		]);
+		const containerResult = await runCli(['--config', containerConfig]);
+		expect(containerResult.exitCode).toBe(1);
+		expect(containerResult.stderr).toContain('dangerous cleanup root');
+	});
+
+	test('rejects regular-file cleanup roots while missing roots stay no-ops', async () => {
+		const root = createTemporaryRoot();
+		const fileRoot = path.join(root, 'not-a-directory.txt');
+		const missingRoot = path.join(root, 'missing-root');
+		fs.writeFileSync(fileRoot, 'not a directory');
+
+		const fileConfig = writeConfig(root, [targetFor(fileRoot)]);
+		const fileResult = await runCli(['--config', fileConfig, '--apply']);
+		expect(fileResult.exitCode).toBe(1);
+		expect(fileResult.stderr).toContain('is not a directory');
+		expect(fs.existsSync(fileRoot)).toBeTrue();
+
+		const missingConfig = writeConfig(root, [targetFor(missingRoot, { name: 'Missing' })]);
+		const missingResult = await runCli(['--config', missingConfig, '--apply']);
+		expect(missingResult.exitCode).toBe(0);
+		expect(missingResult.stdout).toContain('No matching artifacts under');
+	});
 });
 
 describe('CLI and packaged defaults', () => {

@@ -7,6 +7,7 @@ import type { CleanupTarget } from './config.ts';
 import type { FilesystemAdapter } from './filesystem-adapter.ts';
 
 import { isRecord } from './config.ts';
+import { isDangerousRootPath } from './dangerous-roots.ts';
 import { defaultFilesystemAdapter } from './filesystem-adapter.ts';
 import { errorMessage, formatLogValue } from './reporting.ts';
 
@@ -33,49 +34,6 @@ export const normalizeForCompare = (candidatePath: string): string => {
 	const resolved = path.resolve(candidatePath);
 	return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 };
-
-const WIN_DANGEROUS = [
-	'C:\\Windows',
-	'C:\\Windows\\System32',
-	'C:\\Program Files',
-	'C:\\Program Files (x86)',
-	'C:\\Users',
-	'C:\\ProgramData',
-];
-const POSIX_DANGEROUS = [
-	'/bin',
-	'/boot',
-	'/dev',
-	'/etc',
-	'/home',
-	'/lib',
-	'/lib64',
-	'/opt',
-	'/proc',
-	'/root',
-	'/sbin',
-	'/srv',
-	'/sys',
-	'/usr',
-	'/usr/bin',
-	'/usr/local',
-	'/usr/sbin',
-	'/var',
-	'/Users',
-];
-const DANGEROUS_PATHS: Set<string> = new Set(
-	[...(process.platform === 'win32' ? WIN_DANGEROUS : POSIX_DANGEROUS), os.homedir()].map(
-		normalizeForCompare
-	)
-);
-
-const isFilesystemRoot = (candidatePath: string): boolean => {
-	const resolved = path.resolve(candidatePath);
-	return normalizeForCompare(resolved) === normalizeForCompare(path.parse(resolved).root);
-};
-
-const isDangerousPath = (candidatePath: string): boolean =>
-	isFilesystemRoot(candidatePath) || DANGEROUS_PATHS.has(normalizeForCompare(candidatePath));
 
 export const expandPath = (inputPath: string): string => {
 	let expanded = inputPath;
@@ -146,8 +104,16 @@ const assertPathHasNoLinks = (
 	}
 };
 
+const isWithinOrEqual = (candidatePath: string, rootPath: string): boolean => {
+	const relative = path.relative(rootPath, candidatePath);
+	return (
+		relative === '' ||
+		(!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
+	);
+};
+
 const assertNotDangerousRoot = (candidatePath: string, label: string, kind: string): void => {
-	if (isDangerousPath(candidatePath)) {
+	if (isDangerousRootPath(candidatePath)) {
 		throw new Error(
 			`Refusing dangerous ${kind} root for ${label}: ${formatLogValue(candidatePath)}`
 		);
@@ -171,6 +137,37 @@ const resolveCanonicalPath = (
 	}
 };
 
+/** Existing roots must be directories; missing roots stay allowed for later no-op. */
+const assertExistingRootIsDirectory = (
+	candidatePath: string,
+	label: string,
+	fsAdapter: FilesystemAdapter
+): void => {
+	let stats: fs.Stats;
+	try {
+		stats = fsAdapter.lstatSync(candidatePath);
+	} catch (err) {
+		const code = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
+		if (code === 'ENOENT') {
+			return;
+		}
+		throw new Error(
+			`Cannot inspect ${label} ${formatLogValue(candidatePath)}: ${errorMessage(err)}`,
+			{ cause: err }
+		);
+	}
+	if (stats.isSymbolicLink()) {
+		throw new Error(
+			`Refusing symbolic link or junction cleanup root: ${formatLogValue(candidatePath)}`
+		);
+	}
+	if (!stats.isDirectory()) {
+		throw new Error(
+			`Cleanup root for ${label} is not a directory: ${formatLogValue(candidatePath)}`
+		);
+	}
+};
+
 export const planRoot = (
 	configuredPath: string,
 	label: string,
@@ -186,17 +183,9 @@ export const planRoot = (
 			`${label} resolves through a symbolic link or junction: ${formatLogValue(resolvedPath)}`
 		);
 	}
+	assertExistingRootIsDirectory(resolvedPath, label, fsAdapter);
 	return { configuredPath, resolvedPath, canonicalPath, label };
 };
-
-const isWithinOrEqual = (candidatePath: string, rootPath: string): boolean => {
-	const relative = path.relative(rootPath, candidatePath);
-	return (
-		relative === '' ||
-		(!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
-	);
-};
-
 const assertNoOverlappingRoots = (roots: PlannedRoot[]): void => {
 	for (let index = 0; index < roots.length; index++) {
 		for (let otherIndex = index + 1; otherIndex < roots.length; otherIndex++) {

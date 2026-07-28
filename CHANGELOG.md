@@ -5,6 +5,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Cleanup-root planning no longer admits protected operating-system descendants or regular
+  files. Protected OS trees reject equal-or-descendant paths; user-container roots and the
+  invoking home remain exact-only. Existing roots must be directories at `planRoot` time
+  (missing roots stay no-ops), and `listArtifacts` defensively refuses non-directory roots.
+  Denylist logic lives in private `src/dangerous-roots.ts` so safety modules stay under the
+  300-line cap. Regression coverage in `test/cli.test.ts` and `test/release-verification.test.ts`
+  (feature
+  `audit-security-1785207355-cleanup-root-validation-admits-protected-system-descendants-and-regular-files`).
+
 ### Changed
 
 - Reduced cyclomatic complexity across cleanup, CLI, config, run, targets, filesystem-safety,
