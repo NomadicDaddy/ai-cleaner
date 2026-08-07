@@ -24,13 +24,15 @@
 		"build:bundle": "bun build ./index.ts --target=bun --outfile ./dist/ai-cleaner.js",
 		"build:verify": "bun ./scripts/verify-build.ts",
 		"build:verify-package": "bun ./scripts/verify-package.ts",
+		"check:leak-guard": "bun ./scripts/run-bash.ts scripts/check-leak-guard.sh",
 		"format": "bunx prettier --write .",
 		"format:check": "bunx prettier --check .",
 		"lint": "eslint index.ts src test scripts eslint.config.js --report-unused-disable-directives --max-warnings 0",
 		"smoke:qc": "bun run format:check && bun run lint && bun run typecheck && bun test && bun run build",
 		"test": "bun test",
 		"typecheck": "tsc --noEmit",
-		"preinstall": "bun scripts/require-bun.ts"
+		"preinstall": "bun scripts/require-bun.ts",
+		"prepare": "(git config core.hooksPath .githooks && bun ./scripts/run-bash.ts .githooks/leak-guard-setup.sh) || true"
 	},
 	"keywords": [
 		"ai",
