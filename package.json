@@ -25,6 +25,7 @@
 		"build:verify": "bun ./scripts/verify-build.ts",
 		"build:verify-package": "bun ./scripts/verify-package.ts",
 		"check:leak-guard": "bun ./scripts/run-bash.ts scripts/check-leak-guard.sh",
+		"deploy": "bun -e \"console.error('No remote deployment target is configured. Run locally with bun run start.'); process.exit(1)\"",
 		"format": "bunx prettier --write .",
 		"format:check": "bunx prettier --check .",
 		"lint": "eslint index.ts src test scripts eslint.config.js --report-unused-disable-directives --max-warnings 0",
