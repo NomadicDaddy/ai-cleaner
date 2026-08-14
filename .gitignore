@@ -11,25 +11,13 @@ dist/
 AGENTS.md
 
 # aidd / agent-generated artifacts
-# Derived from aidd's artifact catalog: ignore exactly the runtime/generated/secret rows;
-# everything else under .aidd/ is a durable blueprint and is committed on purpose.
-# generated — reproducible by re-running the producer
-.aidd/_common/
-.aidd/.artifacts-check.json
-.aidd/audit-reports/
-.aidd/audits/
-.aidd/feature-review-report.md
-.aidd/remediation-review.md
-.aidd/reports/
-.aidd/response-review.md
-.aidd/skills/
-# runtime — meaningful only for the run that wrote it
-.aidd/active-runs/
-.aidd/iterations/
-.aidd/runs.jsonl
-.aidd/.stop
-# secret — provider API keys, web.authToken, botToken; never commit
-.aidd/aidd.config.json
+# Root-anchored and blanket: this repository has a public push remote, so .aidd/ is local-only.
+# The earlier per-row profile (ignore only the runtime/generated/secret rows, commit the blueprint)
+# is the "managed" profile — correct only while a repository has NO push remote. This one acquired
+# one, so the blueprint stops being publishable; see .githooks/aidd-history-guard.sh, which enforces
+# exactly this and is the reason the tracked .aidd history was stripped rather than merely untracked.
+# The files stay on disk and the aidd tooling keeps working; they are simply never published.
+/.aidd/
 
 # logs/temp
 *.log
