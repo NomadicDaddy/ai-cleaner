@@ -181,11 +181,14 @@ The pre-push hook protects local AIDD metadata. Repositories without a push remo
 their `.aidd` blueprint tracked locally. If a push remote is configured, the hook refuses tracked
 or historical `.aidd` content and fails closed when it cannot inspect the pushed revision range.
 
-Screenshot capture is package-capability gated. The shared `.githooks/screenshot-guard.sh` is kept
-for fleet identity with AIDD/Spernakit, but `.githooks/pre-push` invokes it only when
-`package.json` defines a non-empty `smoke:screenshots` script. This CLI has no UI and no capture
-workflow, so version-tag pushes print `screenshot guard: not applicable` and continue without a
-bypass flag. Projects that do ship a UI capture script keep the full tag-screenshot requirement.
+Screenshot capture is root-based opt-in, not package-capability gated. The shared
+`.githooks/screenshot-guard.sh` is kept byte-identical with AIDD/Spernakit for fleet identity, and
+`.githooks/pre-push` invokes it unconditionally on every push. Applicability is decided by the
+guard's own contract file: a repository declares capture by committing a tracked
+`.screenshot-capture` file at its root. This headless CLI has no UI and no capture workflow, so it
+ships no declaration — version-tag pushes pass with `no .screenshot-capture in this repository,
+nothing to check` and no bypass flag. Repositories that do ship a UI keep the declaration and must
+capture into `screenshots/v<version>/` before the matching tag can be pushed.
 
 ## License
 

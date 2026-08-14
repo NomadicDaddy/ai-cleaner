@@ -7,6 +7,24 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Closed testing audit finding `audit-testing-1785911839-hook-verification-encodes-the-removed-package-capability-gate`:
+  `test/hooks.test.ts` still encoded the package-capability screenshot gate that commit `8643343`
+  removed from `.githooks/pre-push`, leaving the suite at 74 pass / 2 fail and short-circuiting
+  `smoke:qc` before build. The suite was rewritten to the committed root-based contract in
+  `.githooks/screenshot-guard.sh`: pre-push unconditionally invokes the wrapper (source assertions
+  plus a repo-root run proving a version-tag push passes with no `.screenshot-capture`), success
+  when the declaration file is absent, failure when an opted-in repo lacks the pushed-version
+  `screenshots/v<version>/` capture, failure when the capture has too few PNGs, success on a
+  complete capture, a failing AIDD history guard short-circuiting before the screenshot guard
+  runs, and a screenshot-guard failure propagating through pre-push without `pre-push: passed`.
+  Fixture repositories are `git init`-ed so the real history guard's no-remote early exit is
+  exercised for the right reason, not vacuously. `README.md` and `.aidd/project-structure.md` now
+  document the tracked-root `.screenshot-capture` opt-in contract instead of the
+  `smoke:screenshots` package-capability gate. Audit feedback loop closed on source feature
+  `aidd-history-guard`: spec line 5 replaced with the reconstructable root-based contract, spec
+  line 6 added forbidding any package-capability probe, revision note 1.2.3 recorded. `bun test`:
+  85 pass / 0 fail; `bun run smoke:qc` passes end to end.
+
 - Closed reorg finding `audit-reorg-1785911840-two-non-test-typescript-modules-exceed-the-300-line-cap`:
   the last two non-test TypeScript modules over the 300-line cap were split. New
   `src/config-file.ts` exports `readConfigValue(configPath): unknown` (cwd-resolved UTF-8 read +

@@ -61,44 +61,130 @@ const runPrePush = async (
 	return { exitCode, stderr, stdout };
 };
 
-const writePackageJson = (root: string, scripts: Record<string, string>): void => {
-	fs.writeFileSync(
-		path.join(root, 'package.json'),
-		`${JSON.stringify({ name: 'hooks-fixture', scripts }, null, '\t')}\n`
-	);
-};
-
 const writeExecutable = (filePath: string, contents: string): void => {
 	fs.mkdirSync(path.dirname(filePath), { recursive: true });
 	fs.writeFileSync(filePath, contents.replace(/\r\n/g, '\n'), { mode: 0o755 });
 };
 
-describe('pre-push screenshot capability gate', () => {
-	test('skips the screenshot stage for this CLI on a version-tag push without a bypass flag', async () => {
-		const prePushPath = path.join(repositoryRoot, '.githooks', 'pre-push');
-		const packageJson = fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8');
-		expect(packageJson).not.toMatch(/"smoke:screenshots"\s*:\s*"[^"]+"/);
+const installRealHooks = (hooksDir: string): void => {
+	for (const name of ['pre-push', 'aidd-history-guard.sh', 'screenshot-guard.sh'] as const) {
+		writeExecutable(
+			path.join(hooksDir, name),
+			fs.readFileSync(path.join(repositoryRoot, '.githooks', name), 'utf8')
+		);
+	}
+};
 
-		const result = await runPrePush(repositoryRoot, prePushPath, tagRefLine);
+const writePngs = (dir: string, count: number): void => {
+	fs.mkdirSync(dir, { recursive: true });
+	for (let i = 0; i < count; i += 1) {
+		fs.writeFileSync(path.join(dir, `page-${i}.png`), 'png');
+	}
+};
+
+// The history guard needs a real repository: without one its `git remote -v` probe fails
+// (caught by 2>/dev/null) and it would exit 0 for reasons unrelated to this repo's shape.
+const initFixtureRepository = (root: string): void => {
+	const git = process.platform === 'win32' ? 'git.exe' : 'git';
+	Bun.spawnSync([git, 'init', '--quiet'], { cwd: root });
+	Bun.spawnSync([git, 'config', 'user.email', 'fixture@example.invalid'], { cwd: root });
+	Bun.spawnSync([git, 'config', 'user.name', 'Fixture'], { cwd: root });
+};
+
+describe('pre-push screenshot guard wiring', () => {
+	test('unconditionally invokes the shared screenshot guard in this repository', async () => {
+		// The package-capability gate is gone: pre-push invokes screenshot-guard.sh for every
+		// push, and applicability is decided by the guard's own root-based contract file.
+		const prePushSource = fs.readFileSync(
+			path.join(repositoryRoot, '.githooks', 'pre-push'),
+			'utf8'
+		);
+		expect(prePushSource).not.toContain('smoke:screenshots');
+		expect(prePushSource).toContain('screenshot-guard.sh');
+
+		// This repository has no capture declaration, so a version-tag push must pass without a
+		// bypass flag while the guard still runs and reports nothing to enforce.
+		expect(fs.existsSync(path.join(repositoryRoot, '.screenshot-capture'))).toBeFalse();
+
+		const result = await runPrePush(
+			repositoryRoot,
+			path.join(repositoryRoot, '.githooks', 'pre-push'),
+			tagRefLine
+		);
 
 		expect(result.exitCode).toBe(0);
 		expect(result.stdout).toContain('pre-push: aidd history guard');
-		expect(result.stdout).toContain('screenshot guard: not applicable');
-		expect(result.stdout).not.toContain('pre-push: screenshot guard\n');
+		expect(result.stdout).toContain('pre-push: screenshot guard');
+		expect(result.stdout).not.toContain('not applicable');
 		expect(result.stdout).toContain('pre-push: passed');
-		// Without smoke:screenshots the shared guard must not block the tag.
 		expect(result.stderr).not.toContain('PUSH BLOCKED');
-		expect(result.stderr).not.toContain('bun run smoke:screenshots');
 	});
 
-	test('invokes the AIDD history guard and propagates its exit status', async () => {
+	test('passes a version-tag push when the repository has no capture declaration', async () => {
+		const root = createTemporaryRoot();
+		initFixtureRepository(root);
+		installRealHooks(path.join(root, '.githooks'));
+
+		const result = await runPrePush(root, path.join(root, '.githooks', 'pre-push'), tagRefLine);
+
+		expect(result.exitCode).toBe(0);
+		expect(result.stderr).toContain(
+			'no .screenshot-capture in this repository, nothing to check'
+		);
+		expect(result.stdout).toContain('pre-push: screenshot guard');
+		expect(result.stdout).toContain('pre-push: passed');
+	});
+
+	test('fails an opted-in tag when the version directory is missing', async () => {
+		const root = createTemporaryRoot();
+		initFixtureRepository(root);
+		installRealHooks(path.join(root, '.githooks'));
+		fs.writeFileSync(path.join(root, '.screenshot-capture'), '');
+
+		const result = await runPrePush(root, path.join(root, '.githooks', 'pre-push'), tagRefLine);
+
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain(
+			'declares release capture, but screenshots/ has no v1.2.0/'
+		);
+		expect(result.stderr).toContain('PUSH BLOCKED');
+	});
+
+	test('fails an opted-in tag when the capture has too few PNGs', async () => {
+		const root = createTemporaryRoot();
+		initFixtureRepository(root);
+		installRealHooks(path.join(root, '.githooks'));
+		fs.writeFileSync(path.join(root, '.screenshot-capture'), '');
+		writePngs(path.join(root, 'screenshots', 'v1.2.0'), 2);
+
+		const result = await runPrePush(root, path.join(root, '.githooks', 'pre-push'), tagRefLine);
+
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain('has only 2 PNG(s)');
+		expect(result.stderr).toContain('PUSH BLOCKED');
+	});
+
+	test('passes an opted-in tag whose capture directory is complete', async () => {
+		const root = createTemporaryRoot();
+		initFixtureRepository(root);
+		installRealHooks(path.join(root, '.githooks'));
+		fs.writeFileSync(path.join(root, '.screenshot-capture'), '');
+		writePngs(path.join(root, 'screenshots', 'v1.2.0'), 6);
+
+		const result = await runPrePush(root, path.join(root, '.githooks', 'pre-push'), tagRefLine);
+
+		expect(result.exitCode).toBe(0);
+		expect(result.stderr).not.toContain('PUSH BLOCKED');
+		expect(result.stdout).toContain('pre-push: passed');
+	});
+
+	test('a failing AIDD history guard short-circuits before the screenshot guard runs', async () => {
 		const root = createTemporaryRoot();
 		const hooksDir = path.join(root, '.githooks');
 		const marker = path.join(root, 'screenshot-guard-ran');
 		const historyMarker = path.join(root, 'history-guard-ran');
 
-		writePackageJson(root, { test: 'echo ok' });
-		// Use the real wrapper so the capability gate under test is the production script.
+		// Real wrapper so the wiring under test is the production script.
 		writeExecutable(
 			path.join(hooksDir, 'pre-push'),
 			fs.readFileSync(path.join(repositoryRoot, '.githooks', 'pre-push'), 'utf8')
@@ -133,17 +219,16 @@ exit 1
 		expect(fs.existsSync(historyMarker)).toBeTrue();
 		expect(fs.existsSync(marker)).toBeFalse();
 		expect(result.stdout).toContain('pre-push: aidd history guard');
-		// History guard failed closed before the screenshot stage; N/A must not claim success.
-		expect(result.stdout).not.toContain('screenshot guard: not applicable');
+		// History guard failed closed before the screenshot stage; it must not claim success.
+		expect(result.stdout).not.toContain('pre-push: screenshot guard');
 		expect(result.stdout).not.toContain('pre-push: passed');
 	});
 
-	test('runs the screenshot guard when package.json defines smoke:screenshots', async () => {
+	test('a failing screenshot guard propagates through pre-push and blocks the push', async () => {
 		const root = createTemporaryRoot();
 		const hooksDir = path.join(root, '.githooks');
 		const marker = path.join(root, 'screenshot-guard-ran');
 
-		writePackageJson(root, { 'smoke:screenshots': 'bun run crawltest:screenshots' });
 		writeExecutable(
 			path.join(hooksDir, 'pre-push'),
 			fs.readFileSync(path.join(repositoryRoot, '.githooks', 'pre-push'), 'utf8')
@@ -160,50 +245,18 @@ exit 0
 			`#!/usr/bin/env bash
 set -euo pipefail
 touch "${marker.replace(/\\/g, '/')}"
-exit 0
+echo "PUSH BLOCKED: stub refusal" >&2
+exit 7
 `
 		);
 
 		const result = await runPrePush(root, path.join(hooksDir, 'pre-push'), tagRefLine);
 
-		expect(result.exitCode).toBe(0);
+		expect(result.exitCode).toBe(7);
 		expect(fs.existsSync(marker)).toBeTrue();
+		expect(result.stderr).toContain('PUSH BLOCKED: stub refusal');
 		expect(result.stdout).toContain('pre-push: screenshot guard');
-		expect(result.stdout).not.toContain('screenshot guard: not applicable');
-		expect(result.stdout).toContain('pre-push: passed');
-	});
-
-	test('treats an empty smoke:screenshots script as not applicable', async () => {
-		const root = createTemporaryRoot();
-		const hooksDir = path.join(root, '.githooks');
-		const marker = path.join(root, 'screenshot-guard-ran');
-
-		writePackageJson(root, { 'smoke:screenshots': '' });
-		writeExecutable(
-			path.join(hooksDir, 'pre-push'),
-			fs.readFileSync(path.join(repositoryRoot, '.githooks', 'pre-push'), 'utf8')
-		);
-		writeExecutable(
-			path.join(hooksDir, 'aidd-history-guard.sh'),
-			`#!/usr/bin/env bash
-set -euo pipefail
-exit 0
-`
-		);
-		writeExecutable(
-			path.join(hooksDir, 'screenshot-guard.sh'),
-			`#!/usr/bin/env bash
-set -euo pipefail
-touch "${marker.replace(/\\/g, '/')}"
-exit 1
-`
-		);
-
-		const result = await runPrePush(root, path.join(hooksDir, 'pre-push'), tagRefLine);
-
-		expect(result.exitCode).toBe(0);
-		expect(fs.existsSync(marker)).toBeFalse();
-		expect(result.stdout).toContain('screenshot guard: not applicable');
-		expect(result.stdout).toContain('pre-push: passed');
+		// The failure must propagate: the wrapper never prints its success line.
+		expect(result.stdout).not.toContain('pre-push: passed');
 	});
 });
