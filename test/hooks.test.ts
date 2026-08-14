@@ -32,6 +32,23 @@ const resolveBash = (): string => {
 const tagRefLine =
 	'refs/tags/v1.2.0 1111111111111111111111111111111111111111 refs/tags/v1.2.0 0000000000000000000000000000000000000000';
 
+// The synthetic SHA above is right for the temporary fixtures: they hold no commits, so no revision
+// would resolve in them anyway, and having no push remote the history guard exits before it reads
+// one. A run against THIS repository is the opposite case — the guard does resolve the revision, and
+// an unresolvable one is precisely what it refuses to read as "no .aidd commits" (it fails closed;
+// see aidd-history-guard.sh). Handing it a synthetic SHA there asserts a contradiction: the test
+// demands exit 0 from a guard whose contract is to block. Name a real revision instead.
+//
+// This only became reachable when the repository gained a push remote. Before that the guard
+// short-circuited on every call and the assertion passed without exercising anything.
+const realTagRefLine = (): string => {
+	const git = process.platform === 'win32' ? 'git.exe' : 'git';
+	const head = Bun.spawnSync([git, 'rev-parse', 'HEAD'], { cwd: repositoryRoot })
+		.stdout.toString()
+		.trim();
+	return `refs/tags/v1.2.0 ${head} refs/tags/v1.2.0 0000000000000000000000000000000000000000`;
+};
+
 const runPrePush = async (
 	cwd: string,
 	prePushPath: string,
@@ -109,7 +126,7 @@ describe('pre-push screenshot guard wiring', () => {
 		const result = await runPrePush(
 			repositoryRoot,
 			path.join(repositoryRoot, '.githooks', 'pre-push'),
-			tagRefLine
+			realTagRefLine()
 		);
 
 		expect(result.exitCode).toBe(0);
