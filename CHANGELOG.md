@@ -7,6 +7,25 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Closed reorg finding `audit-reorg-1785911840-two-non-test-typescript-modules-exceed-the-300-line-cap`:
+  the last two non-test TypeScript modules over the 300-line cap were split. New
+  `src/config-file.ts` exports `readConfigValue(configPath): unknown` (cwd-resolved UTF-8 read +
+  JSON parse, preserving the exact `Failed to read config …` / `Invalid JSON in …` messages and
+  causes); `src/config.ts` `loadConfig` now delegates to it and `parseConfig` stays private
+  (285 lines, down from 308). New `scripts/verify-package-runtime.ts` (155 lines) exports
+  `RunResult`, `runCommand`, `runPacked`, `verifyHelp`, `verifyDryRun`, `envWithout`, and
+  `verifyDotenvIsolation`; `scripts/verify-package.ts` imports the helpers it consumes (202 lines,
+  down from 330) with `--no-env-file` launches, archive assertions, external-cwd execution, and
+  `finally`-based temp cleanup unchanged. Every non-test TS file is now ≤ 300 physical lines
+  (largest: `src/filesystem-safety.ts` at 271). `bun run lint`, `bun run typecheck`, `bun test`
+  (74 pass; the 2 pre-existing `test/hooks.test.ts` failures remain tracked by open finding
+  `audit-testing-1785911839-hook-verification-encodes-the-removed-package-capability-gate`),
+  `bun run build` (including `build:verify-package`, whose packed-archive assertion now proves the
+  new `src/config-file.ts` module ships) all pass; `bun run smoke:qc` exits 1 only on those two
+  pre-existing hook-test failures. `.aidd/project-structure.md` layout and module-boundary rows
+  name both new modules. Feedback loop closed on source features `packaged-cli-distribution`
+  (spec lines 6 and 9 amended additively; two dated revision notes) and
+  `configurable-cleanup-targets` (spec line 1 amended additively; dated revision note).
 - Closed hygiene finding `audit-hygiene-1785911839-test-fixture-exports-an-internally-used-type`:
   removed the `export` modifier from `RunCliEnv` in `test/cli-fixture.ts`; the type remains the
   internal contract for `RunCliOptions.env` and `buildSpawnEnv`. `bunx knip` now exits 0 with zero

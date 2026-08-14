@@ -1,8 +1,5 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-
 import bundledConfig from '../config.json' with { type: 'json' };
-import { errorMessage } from './reporting.ts';
+import { readConfigValue } from './config-file.ts';
 
 export type ArtifactKind = 'directory' | 'file' | 'any';
 type RiskLevel = 'normal' | 'aggressive';
@@ -285,24 +282,4 @@ const parseConfig = (value: unknown): Config => {
 
 export const loadBundledConfig = (): Config => parseConfig(bundledConfig);
 
-export const loadConfig = (configPath: string): Config => {
-	const fullPath = path.resolve(process.cwd(), configPath);
-	let raw: string;
-	try {
-		raw = fs.readFileSync(fullPath, 'utf8');
-	} catch (err) {
-		// Path and nested message stay raw so formatErrorMessage at emission encodes once.
-		throw new Error(`Failed to read config ${fullPath}: ${errorMessage(err)}`, {
-			cause: err,
-		});
-	}
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(raw) as unknown;
-	} catch (err) {
-		throw new Error(`Invalid JSON in ${fullPath}: ${errorMessage(err)}`, {
-			cause: err,
-		});
-	}
-	return parseConfig(parsed);
-};
+export const loadConfig = (configPath: string): Config => parseConfig(readConfigValue(configPath));
