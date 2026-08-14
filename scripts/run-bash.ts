@@ -60,7 +60,7 @@ function resolveBash(): string {
 
 	console.error('run-bash: no Git Bash found on this machine.');
 	console.error(
-		'run-bash: install Git for Windows, or put a POSIX bash ahead of System32 on PATH.',
+		'run-bash: install Git for Windows, or put a POSIX bash ahead of System32 on PATH.'
 	);
 	console.error('run-bash: the System32 bash.exe is the WSL launcher and is never used here.');
 	exit(1);

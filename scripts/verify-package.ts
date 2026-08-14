@@ -51,7 +51,9 @@ const collectRuntimeModules = (srcDir: string): string[] => {
 };
 
 const listTarballPaths = async (tarballPath: string, cwd: string): Promise<string[]> => {
-	const result = await runCommand(['tar', '-tzf', tarballPath], cwd);
+	// Pass the basename only: GNU tar parses a drive-letter absolute path (C:\...) as a remote
+	// host spec, while the spawn cwd keeps the archive reachable under both GNU and bsdtar.
+	const result = await runCommand(['tar', '-tzf', path.basename(tarballPath)], cwd);
 	if (result.exitCode !== 0) {
 		throw new Error(`tar -tzf failed (${result.exitCode}):\n${result.stderr}`);
 	}
@@ -148,9 +150,18 @@ const packTarball = async (packDir: string): Promise<string> => {
 	return resolveTarballPath(packDir, result.stdout);
 };
 
-const extractTarball = async (tarballPath: string, extractDir: string): Promise<string> => {
+const extractTarball = async (
+	tarballPath: string,
+	extractDir: string,
+	tempRoot: string
+): Promise<string> => {
 	fs.mkdirSync(extractDir, { recursive: true });
-	const result = await runCommand(['tar', '-xzf', tarballPath, '-C', extractDir], extractDir);
+	// Relative POSIX operands only: GNU tar parses drive-letter absolute paths (C:\...) as
+	// remote host specs or backslash escape sequences. Spawning from the shared temp root
+	// keeps both the archive and the -C target relative under GNU and bsdtar alike.
+	const relTarball = path.relative(tempRoot, tarballPath).split(path.sep).join('/');
+	const relExtract = path.relative(tempRoot, extractDir).split(path.sep).join('/');
+	const result = await runCommand(['tar', '-xzf', relTarball, '-C', relExtract], tempRoot);
 	if (result.exitCode !== 0) {
 		throw new Error(`tar extract failed (${result.exitCode}):\n${result.stderr}`);
 	}
@@ -309,7 +320,7 @@ const main = async (): Promise<void> => {
 		const archivePaths = await listTarballPaths(tarballPath, packDir);
 		assertArchiveContents(archivePaths, runtimeModules);
 
-		const packageDir = await extractTarball(tarballPath, extractDir);
+		const packageDir = await extractTarball(tarballPath, extractDir, tempDir);
 		const entryPoint = path.join(packageDir, 'index.ts');
 		if (!fs.existsSync(entryPoint)) {
 			throw new Error(`packed entry point missing at ${entryPoint}`);
