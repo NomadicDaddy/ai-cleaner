@@ -42,7 +42,7 @@ export const writeConfig = (root: string, targets: TestTarget[]): string => {
 	return configPath;
 };
 
-export type RunCliEnv = Record<string, string | undefined>;
+type RunCliEnv = Record<string, string | undefined>;
 
 export interface RunCliOptions {
 	cwd?: string;

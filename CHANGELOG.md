@@ -7,6 +7,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Closed hygiene finding `audit-hygiene-1785911839-test-fixture-exports-an-internally-used-type`:
+  removed the `export` modifier from `RunCliEnv` in `test/cli-fixture.ts`; the type remains the
+  internal contract for `RunCliOptions.env` and `buildSpawnEnv`. `bunx knip` now exits 0 with zero
+  unused files, exports, types, or dependencies — no lint or Knip configuration was relaxed.
+  `bun run lint`, `bun run typecheck`, `bun test`, and `bun run build` (bundle, verify-build,
+  verify-package) all pass; `bun run smoke:qc` still exits 1 only on the two pre-existing
+  `test/hooks.test.ts` failures (74 pass / 2 fail) already tracked by open finding
+  `audit-testing-1785911839-hook-verification-encodes-the-removed-package-capability-gate`.
+  Feedback loop closed on source feature `configurable-cleanup-targets`: spec line 4 amended
+  additively so a feature-based rebuild keeps fixture types used only inside the fixture
+  unexported, plus a dated revision note.
 - Tier C TypeScript toolchain drift closed: `eslint` `10.8.0` and `globals` `17.8.0` with
   regenerated `bun.lock`; `tsconfig` module `ESNext` / `moduleResolution` `bundler` / `noEmit` /
   target `ES2022`; lint covers `scripts/` and `eslint.config.js`; `toSorted` replaced with
