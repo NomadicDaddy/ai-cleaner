@@ -193,7 +193,9 @@ const parseCleanupTarget = (value: unknown, label: string): CleanupTarget => {
 
 const parseOverrides = (value: unknown): Record<string, RetentionPolicy> => {
 	const raw = assertRecord(value, 'overrides');
-	const overrides: Record<string, RetentionPolicy> = {};
+	// Null prototype: `constructor`, `toString`, and `__proto__` keys must land as own
+	// entries instead of colliding with inherited Object.prototype properties.
+	const overrides: Record<string, RetentionPolicy> = Object.create(null);
 	for (const [name, policy] of Object.entries(raw)) {
 		parseNonEmptyString(name, 'overrides key');
 		// Labels stay raw; formatErrorMessage at stderr emission encodes them once.
@@ -204,7 +206,8 @@ const parseOverrides = (value: unknown): Record<string, RetentionPolicy> => {
 
 const parsePresets = (value: unknown): Record<string, CleanupTarget[]> => {
 	const raw = assertRecord(value, 'presets');
-	const presets: Record<string, CleanupTarget[]> = {};
+	// Null prototype: preset names that shadow inherited properties stay own entries.
+	const presets: Record<string, CleanupTarget[]> = Object.create(null);
 	for (const [name, targets] of Object.entries(raw)) {
 		parseNonEmptyString(name, 'presets key');
 		if (!Array.isArray(targets)) {
@@ -227,7 +230,9 @@ const validateUsePresetRefs = (
 	presets: Record<string, CleanupTarget[]> | undefined
 ): void => {
 	for (const presetName of usePresets) {
-		if (presets?.[presetName] === undefined) {
+		// Own-property guard: an inherited name (e.g. `constructor`) must never
+		// resolve to a preset that was not explicitly configured.
+		if (presets === undefined || !Object.hasOwn(presets, presetName)) {
 			throw new Error(`usePresets references unknown preset: ${presetName}.`);
 		}
 	}

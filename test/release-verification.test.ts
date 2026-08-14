@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import type { RetentionPolicy } from '../src/config.ts';
 import type { FilesystemAdapter } from '../src/filesystem-adapter.ts';
 
 import { processTarget } from '../src/cleanup.ts';
@@ -142,6 +143,127 @@ describe('legacy target discovery and overrides', () => {
 		expect(result.exitCode).toBe(0);
 		expect(fs.existsSync(path.join(toolA, 'a.log'))).toBeFalse();
 		expect(result.stdout).toContain('already covered by explicit target');
+	});
+});
+
+describe('inherited property names must not bypass retention', () => {
+	// A legacy directory whose name collides with an inherited Object.prototype
+	// property must resolve to default retention, never to the inherited value.
+	for (const legacyName of ['constructor', 'toString', '__proto__'] as const) {
+		test(`directory named ${legacyName} keeps default retention and preserves the newest artifact`, async () => {
+			const root = createTemporaryRoot();
+			const legacyHome = path.join(root, 'legacy-home');
+			const toolDir = path.join(legacyHome, legacyName);
+			fs.mkdirSync(toolDir, { recursive: true });
+			const artifacts = [0, 1, 2].map((index) => {
+				const dir = path.join(toolDir, `a${index}`);
+				fs.mkdirSync(dir);
+				fs.utimesSync(dir, index + 1, index + 1);
+				return dir;
+			});
+
+			const configPath = path.join(root, 'config.json');
+			fs.writeFileSync(
+				configPath,
+				JSON.stringify({
+					defaultRetention: { keepCount: 1 },
+					overrides: {},
+					targetPaths: [legacyHome],
+				})
+			);
+
+			const result = await runCli(['--config', configPath, '--apply']);
+			expect(result.exitCode).toBe(0);
+			// keepCount 1 deletes the two oldest and keeps the newest sentinel.
+			expect(fs.existsSync(artifacts[0] ?? '')).toBeFalse();
+			expect(fs.existsSync(artifacts[1] ?? '')).toBeFalse();
+			expect(fs.existsSync(artifacts[2] ?? '')).toBeTrue();
+		});
+	}
+
+	test('explicitly configured override for a legacy-colliding name still applies', async () => {
+		const root = createTemporaryRoot();
+		const legacyHome = path.join(root, 'legacy-home');
+		const toolDir = path.join(legacyHome, '__proto__');
+		fs.mkdirSync(toolDir, { recursive: true });
+		const artifacts = [0, 1, 2].map((index) => {
+			const dir = path.join(toolDir, `a${index}`);
+			fs.mkdirSync(dir);
+			fs.utimesSync(dir, index + 1, index + 1);
+			return dir;
+		});
+
+		const configPath = path.join(root, 'config.json');
+		// Own-property key: on a normal object even assignment via ['__proto__']
+		// invokes the inherited prototype setter, so start from a null prototype.
+		const overrides: Record<string, unknown> = Object.create(null);
+		overrides['__proto__'] = { keepCount: 2 };
+		fs.writeFileSync(
+			configPath,
+			JSON.stringify({
+				defaultRetention: { keepCount: 1 },
+				overrides,
+				targetPaths: [legacyHome],
+			})
+		);
+
+		const result = await runCli(['--config', configPath, '--apply']);
+		expect(result.exitCode).toBe(0);
+		// The own-property override keepCount 2 wins over the default keepCount 1.
+		expect(fs.existsSync(artifacts[0] ?? '')).toBeFalse();
+		expect(fs.existsSync(artifacts[1] ?? '')).toBeTrue();
+		expect(fs.existsSync(artifacts[2] ?? '')).toBeTrue();
+	});
+
+	test('usePresets referencing an inherited property name is rejected as unknown', async () => {
+		const root = createTemporaryRoot();
+		const configPath = path.join(root, 'config.json');
+		fs.writeFileSync(
+			configPath,
+			JSON.stringify({
+				presets: {},
+				usePresets: ['constructor'],
+			})
+		);
+
+		const result = await runCli(['--config', configPath]);
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain('usePresets references unknown preset: constructor');
+	});
+});
+
+describe('retention policy completeness', () => {
+	test('policy missing both keepCount and keepDays is refused without deleting artifacts', () => {
+		const root = createTemporaryRoot();
+		const artifactRoot = path.join(root, 'artifacts');
+		const artifact = path.join(artifactRoot, 'session-1');
+		fs.mkdirSync(artifact, { recursive: true });
+
+		const fsAdapter: FilesystemAdapter = {
+			lstatSync: (p) => fs.lstatSync(p),
+			readdirSync: (p) => fs.readdirSync(p, { withFileTypes: true }),
+			realpathSync: (p) => fs.realpathSync.native(p),
+			rmSync: (p, options) => fs.rmSync(p, options),
+		};
+		const plan = buildTargetPlan(
+			[
+				{
+					kind: 'directory',
+					name: 'Incomplete policy',
+					paths: [artifactRoot],
+					tool: 'test',
+				},
+			],
+			fsAdapter
+		);
+
+		// Defensive guard for direct processTarget callers: configuration parsing
+		// already refuses this shape, but selection must fail loudly rather than
+		// treat a missing keepDays as 0 and delete every artifact.
+		expect(() =>
+			processTarget(plan[0]!, { allowEmpty: true } as RetentionPolicy, true, false, fsAdapter)
+		).toThrow('must define keepCount or keepDays');
+		expect(fs.existsSync(artifact)).toBeTrue();
 	});
 });
 

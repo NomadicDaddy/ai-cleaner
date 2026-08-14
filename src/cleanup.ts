@@ -164,7 +164,16 @@ const selectArtifactsToDelete = (artifacts: Artifact[], policy: RetentionPolicy)
 			.sort((first, second) => second.time - first.time)
 			.slice(policy.keepCount);
 	}
-	const cutoff = Date.now() - (policy.keepDays ?? 0) * 24 * 60 * 60 * 1000;
+	// Defensive: configuration parsing refuses policies that define neither
+	// keepCount nor keepDays, but processTarget accepts direct callers — a policy
+	// missing both must fail loudly rather than silently treat keepDays as 0,
+	// which would select every artifact for deletion.
+	if (policy.keepDays === undefined) {
+		throw new Error(
+			'Retention policy must define keepCount or keepDays; refusing to treat keepDays as 0.'
+		);
+	}
+	const cutoff = Date.now() - policy.keepDays * 24 * 60 * 60 * 1000;
 	return artifacts.filter((artifact) => artifact.time < cutoff);
 };
 
