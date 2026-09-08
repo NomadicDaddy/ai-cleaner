@@ -3,6 +3,12 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import {
+	captureDeclaredFixture,
+	commitFixtureFiles,
+	tagRefLineFor,
+	writeCaptureEvidence,
+} from './capture-fixture.ts';
 import { repositoryRoot } from './cli-fixture.ts';
 
 const temporaryRoots: string[] = [];
@@ -137,60 +143,76 @@ describe('pre-push screenshot guard wiring', () => {
 		expect(result.stderr).not.toContain('PUSH BLOCKED');
 	});
 
-	test('passes a version-tag push when the repository has no capture declaration', async () => {
+	test('passes a version-tag push when the tagged tree has no capture declaration', async () => {
 		const root = createTemporaryRoot();
 		initFixtureRepository(root);
+		const identity = commitFixtureFiles(root, { 'fixture.txt': 'fixture\n' });
 		installRealHooks(path.join(root, '.githooks'));
 
-		const result = await runPrePush(root, path.join(root, '.githooks', 'pre-push'), tagRefLine);
+		const result = await runPrePush(
+			root,
+			path.join(root, '.githooks', 'pre-push'),
+			tagRefLineFor(identity.commit)
+		);
 
 		expect(result.exitCode).toBe(0);
 		expect(result.stderr).toContain(
-			'no .screenshot-capture in this repository, nothing to check'
+			'tagged tree has no .screenshot-capture; capture is not required'
 		);
 		expect(result.stdout).toContain('pre-push: screenshot guard');
 		expect(result.stdout).toContain('pre-push: passed');
 	});
 
-	test('fails an opted-in tag when the version directory is missing', async () => {
+	test('fails an opted-in tag when the release evidence directory is missing', async () => {
 		const root = createTemporaryRoot();
 		initFixtureRepository(root);
+		const identity = captureDeclaredFixture(root);
 		installRealHooks(path.join(root, '.githooks'));
-		fs.writeFileSync(path.join(root, '.screenshot-capture'), '');
 
-		const result = await runPrePush(root, path.join(root, '.githooks', 'pre-push'), tagRefLine);
-
-		expect(result.exitCode).toBe(1);
-		expect(result.stderr).toContain(
-			'declares release capture, but screenshots/ has no v1.2.0/'
+		const result = await runPrePush(
+			root,
+			path.join(root, '.githooks', 'pre-push'),
+			tagRefLineFor(identity.commit)
 		);
-		expect(result.stderr).toContain('PUSH BLOCKED');
-	});
-
-	test('fails an opted-in tag when the capture has too few PNGs', async () => {
-		const root = createTemporaryRoot();
-		initFixtureRepository(root);
-		installRealHooks(path.join(root, '.githooks'));
-		fs.writeFileSync(path.join(root, '.screenshot-capture'), '');
-		writePngs(path.join(root, 'screenshots', 'v1.2.0'), 2);
-
-		const result = await runPrePush(root, path.join(root, '.githooks', 'pre-push'), tagRefLine);
 
 		expect(result.exitCode).toBe(1);
-		expect(result.stderr).toContain('has only 2 PNG(s)');
+		expect(result.stderr).toContain("lstat 'screenshots'");
 		expect(result.stderr).toContain('PUSH BLOCKED');
 	});
 
-	test('passes an opted-in tag whose capture directory is complete', async () => {
+	test('fails an opted-in tag when the run manifest is missing', async () => {
 		const root = createTemporaryRoot();
 		initFixtureRepository(root);
+		const identity = captureDeclaredFixture(root);
 		installRealHooks(path.join(root, '.githooks'));
-		fs.writeFileSync(path.join(root, '.screenshot-capture'), '');
 		writePngs(path.join(root, 'screenshots', 'v1.2.0'), 6);
 
-		const result = await runPrePush(root, path.join(root, '.githooks', 'pre-push'), tagRefLine);
+		const result = await runPrePush(
+			root,
+			path.join(root, '.githooks', 'pre-push'),
+			tagRefLineFor(identity.commit)
+		);
+
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain('release-run.json');
+		expect(result.stderr).toContain('PUSH BLOCKED');
+	});
+
+	test('passes an opted-in tag whose release evidence is complete', async () => {
+		const root = createTemporaryRoot();
+		initFixtureRepository(root);
+		const identity = captureDeclaredFixture(root);
+		installRealHooks(path.join(root, '.githooks'));
+		writeCaptureEvidence(root, identity);
+
+		const result = await runPrePush(
+			root,
+			path.join(root, '.githooks', 'pre-push'),
+			tagRefLineFor(identity.commit)
+		);
 
 		expect(result.exitCode).toBe(0);
+		expect(result.stderr).toContain('verified full release capture');
 		expect(result.stderr).not.toContain('PUSH BLOCKED');
 		expect(result.stdout).toContain('pre-push: passed');
 	});
