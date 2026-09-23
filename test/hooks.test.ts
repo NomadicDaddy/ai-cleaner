@@ -59,7 +59,7 @@ const runPrePush = async (
 	cwd: string,
 	prePushPath: string,
 	stdin: string,
-	remoteName = 'origin'
+	remoteName = 'origin',
 ): Promise<{ exitCode: number; stderr: string; stdout: string }> => {
 	const bash = resolveBash();
 	// Git Bash on Windows needs a POSIX path for the script; /d/applications/... form works.
@@ -74,7 +74,7 @@ const runPrePush = async (
 			stderr: 'pipe',
 			stdin: new Blob([stdin.endsWith('\n') ? stdin : `${stdin}\n`]),
 			stdout: 'pipe',
-		}
+		},
 	);
 	const [exitCode, stderr, stdout] = await Promise.all([
 		processHandle.exited,
@@ -93,7 +93,7 @@ const installRealHooks = (hooksDir: string): void => {
 	for (const name of ['pre-push', 'aidd-history-guard.sh', 'screenshot-guard.sh'] as const) {
 		writeExecutable(
 			path.join(hooksDir, name),
-			fs.readFileSync(path.join(repositoryRoot, '.githooks', name), 'utf8')
+			fs.readFileSync(path.join(repositoryRoot, '.githooks', name), 'utf8'),
 		);
 	}
 };
@@ -120,7 +120,7 @@ describe('pre-push screenshot guard wiring', () => {
 		// push, and applicability is decided by the guard's own root-based contract file.
 		const prePushSource = fs.readFileSync(
 			path.join(repositoryRoot, '.githooks', 'pre-push'),
-			'utf8'
+			'utf8',
 		);
 		expect(prePushSource).not.toContain('smoke:screenshots');
 		expect(prePushSource).toContain('screenshot-guard.sh');
@@ -132,7 +132,7 @@ describe('pre-push screenshot guard wiring', () => {
 		const result = await runPrePush(
 			repositoryRoot,
 			path.join(repositoryRoot, '.githooks', 'pre-push'),
-			realTagRefLine()
+			realTagRefLine(),
 		);
 
 		expect(result.exitCode).toBe(0);
@@ -152,12 +152,12 @@ describe('pre-push screenshot guard wiring', () => {
 		const result = await runPrePush(
 			root,
 			path.join(root, '.githooks', 'pre-push'),
-			tagRefLineFor(identity.commit)
+			tagRefLineFor(identity.commit),
 		);
 
 		expect(result.exitCode).toBe(0);
 		expect(result.stderr).toContain(
-			'tagged tree has no .screenshot-capture; capture is not required'
+			'tagged tree has no .screenshot-capture; capture is not required',
 		);
 		expect(result.stdout).toContain('pre-push: screenshot guard');
 		expect(result.stdout).toContain('pre-push: passed');
@@ -172,7 +172,7 @@ describe('pre-push screenshot guard wiring', () => {
 		const result = await runPrePush(
 			root,
 			path.join(root, '.githooks', 'pre-push'),
-			tagRefLineFor(identity.commit)
+			tagRefLineFor(identity.commit),
 		);
 
 		expect(result.exitCode).toBe(1);
@@ -190,7 +190,7 @@ describe('pre-push screenshot guard wiring', () => {
 		const result = await runPrePush(
 			root,
 			path.join(root, '.githooks', 'pre-push'),
-			tagRefLineFor(identity.commit)
+			tagRefLineFor(identity.commit),
 		);
 
 		expect(result.exitCode).toBe(1);
@@ -208,7 +208,7 @@ describe('pre-push screenshot guard wiring', () => {
 		const result = await runPrePush(
 			root,
 			path.join(root, '.githooks', 'pre-push'),
-			tagRefLineFor(identity.commit)
+			tagRefLineFor(identity.commit),
 		);
 
 		expect(result.exitCode).toBe(0);
@@ -226,7 +226,7 @@ describe('pre-push screenshot guard wiring', () => {
 		// Real wrapper so the wiring under test is the production script.
 		writeExecutable(
 			path.join(hooksDir, 'pre-push'),
-			fs.readFileSync(path.join(repositoryRoot, '.githooks', 'pre-push'), 'utf8')
+			fs.readFileSync(path.join(repositoryRoot, '.githooks', 'pre-push'), 'utf8'),
 		);
 		writeExecutable(
 			path.join(hooksDir, 'aidd-history-guard.sh'),
@@ -235,7 +235,7 @@ set -euo pipefail
 touch "${historyMarker.replace(/\\/g, '/')}"
 echo "history-guard-stub: remote=\${1:-}"
 exit 42
-`
+`,
 		);
 		writeExecutable(
 			path.join(hooksDir, 'screenshot-guard.sh'),
@@ -244,14 +244,14 @@ set -euo pipefail
 touch "${marker.replace(/\\/g, '/')}"
 echo "screenshot-guard-stub should not run" >&2
 exit 1
-`
+`,
 		);
 
 		const result = await runPrePush(
 			root,
 			path.join(hooksDir, 'pre-push'),
 			tagRefLine,
-			'origin'
+			'origin',
 		);
 
 		expect(result.exitCode).toBe(42);
@@ -270,14 +270,14 @@ exit 1
 
 		writeExecutable(
 			path.join(hooksDir, 'pre-push'),
-			fs.readFileSync(path.join(repositoryRoot, '.githooks', 'pre-push'), 'utf8')
+			fs.readFileSync(path.join(repositoryRoot, '.githooks', 'pre-push'), 'utf8'),
 		);
 		writeExecutable(
 			path.join(hooksDir, 'aidd-history-guard.sh'),
 			`#!/usr/bin/env bash
 set -euo pipefail
 exit 0
-`
+`,
 		);
 		writeExecutable(
 			path.join(hooksDir, 'screenshot-guard.sh'),
@@ -286,7 +286,7 @@ set -euo pipefail
 touch "${marker.replace(/\\/g, '/')}"
 echo "PUSH BLOCKED: stub refusal" >&2
 exit 7
-`
+`,
 		);
 
 		const result = await runPrePush(root, path.join(hooksDir, 'pre-push'), tagRefLine);

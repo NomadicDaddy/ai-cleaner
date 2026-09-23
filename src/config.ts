@@ -54,7 +54,7 @@ const assertRecord = (value: unknown, label: string): Record<string, unknown> =>
 const assertAllowedKeys = (
 	value: Record<string, unknown>,
 	allowedKeys: readonly string[],
-	label: string
+	label: string,
 ): void => {
 	const allowed = new Set(allowedKeys);
 	const unknownKey = Object.keys(value).find((key) => !allowed.has(key));
@@ -114,18 +114,18 @@ const assertFullDeletionConfirmed = (
 	keepCount: number | undefined,
 	keepDays: number | undefined,
 	allowEmpty: boolean | undefined,
-	label: string
+	label: string,
 ): void => {
 	if (keepCount === 0 && allowEmpty !== true) {
 		throw new Error(
 			`${label}.keepCount is 0 (would delete all matching artifacts). ` +
-				'Set allowEmpty: true on the policy to confirm.'
+				'Set allowEmpty: true on the policy to confirm.',
 		);
 	}
 	if (keepDays === 0 && allowEmpty !== true) {
 		throw new Error(
 			`${label}.keepDays is 0 (would delete all matching artifacts). ` +
-				'Set allowEmpty: true on the policy to confirm.'
+				'Set allowEmpty: true on the policy to confirm.',
 		);
 	}
 };
@@ -171,7 +171,7 @@ const parseCleanupTarget = (value: unknown, label: string): CleanupTarget => {
 	assertAllowedKeys(
 		target,
 		['name', 'tool', 'paths', 'kind', 'retention', 'enabled', 'risk'],
-		label
+		label,
 	);
 	const kind = parseTargetKind(target.kind, label);
 	const risk = parseTargetRisk(target.risk, label);
@@ -214,7 +214,7 @@ const parsePresets = (value: unknown): Record<string, CleanupTarget[]> => {
 			throw new Error(`presets.${name} must be an array of targets.`);
 		}
 		presets[name] = targets.map((target, index) =>
-			parseCleanupTarget(target, `presets.${name}[${index}]`)
+			parseCleanupTarget(target, `presets.${name}[${index}]`),
 		);
 	}
 	return presets;
@@ -227,7 +227,7 @@ const parseConfigTargets = (value: unknown): CleanupTarget[] => {
 
 const validateUsePresetRefs = (
 	usePresets: string[],
-	presets: Record<string, CleanupTarget[]> | undefined
+	presets: Record<string, CleanupTarget[]> | undefined,
 ): void => {
 	for (const presetName of usePresets) {
 		// Own-property guard: an inherited name (e.g. `constructor`) must never

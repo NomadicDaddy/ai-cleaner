@@ -41,7 +41,7 @@ describe('preset selection and order', () => {
 				},
 				targets: [targetFor(explicitRoot, { name: 'Explicit', tool: 'ex' })],
 				usePresets: ['preset-a'],
-			})
+			}),
 		);
 
 		const result = await runCli(['--config', configPath, '--apply']);
@@ -72,7 +72,7 @@ describe('preset selection and order', () => {
 					'preset-a': [targetFor(presetARoot, { name: 'Preset A', tool: 'pa' })],
 					'preset-b': [targetFor(presetBRoot, { name: 'Preset B', tool: 'pb' })],
 				},
-			})
+			}),
 		);
 
 		const result = await runCli(['--config', configPath, '--apply']);
@@ -109,7 +109,7 @@ describe('legacy target discovery and overrides', () => {
 				defaultRetention: { keepCount: 2 },
 				overrides: { toolA: { keepCount: 1 } },
 				targetPaths: [toolDir],
-			})
+			}),
 		);
 
 		const result = await runCli(['--config', configPath, '--apply']);
@@ -136,7 +136,7 @@ describe('legacy target discovery and overrides', () => {
 				defaultRetention: { allowEmpty: true, keepCount: 0 },
 				targets: [targetFor(toolA, { name: 'Explicit toolA', tool: 'toolA' })],
 				targetPaths: [toolDir],
-			})
+			}),
 		);
 
 		const result = await runCli(['--config', configPath, '--apply']);
@@ -169,7 +169,7 @@ describe('inherited property names must not bypass retention', () => {
 					defaultRetention: { keepCount: 1 },
 					overrides: {},
 					targetPaths: [legacyHome],
-				})
+				}),
 			);
 
 			const result = await runCli(['--config', configPath, '--apply']);
@@ -204,7 +204,7 @@ describe('inherited property names must not bypass retention', () => {
 				defaultRetention: { keepCount: 1 },
 				overrides,
 				targetPaths: [legacyHome],
-			})
+			}),
 		);
 
 		const result = await runCli(['--config', configPath, '--apply']);
@@ -223,7 +223,7 @@ describe('inherited property names must not bypass retention', () => {
 			JSON.stringify({
 				presets: {},
 				usePresets: ['constructor'],
-			})
+			}),
 		);
 
 		const result = await runCli(['--config', configPath]);
@@ -254,14 +254,20 @@ describe('retention policy completeness', () => {
 					tool: 'test',
 				},
 			],
-			fsAdapter
+			fsAdapter,
 		);
 
 		// Defensive guard for direct processTarget callers: configuration parsing
 		// already refuses this shape, but selection must fail loudly rather than
 		// treat a missing keepDays as 0 and delete every artifact.
 		expect(() =>
-			processTarget(plan[0]!, { allowEmpty: true } as RetentionPolicy, true, false, fsAdapter)
+			processTarget(
+				plan[0]!,
+				{ allowEmpty: true } as RetentionPolicy,
+				true,
+				false,
+				fsAdapter,
+			),
 		).toThrow('must define keepCount or keepDays');
 		expect(fs.existsSync(artifact)).toBeTrue();
 	});
@@ -420,7 +426,7 @@ describe('unavailable environment variables', () => {
 						tool: 'test',
 					},
 				],
-			})
+			}),
 		);
 
 		const result = await runCli(['--config', configPath]);
@@ -597,7 +603,7 @@ describe('filesystem adapter fault injection', () => {
 					retention: { allowEmpty: true, keepCount: 0 },
 				},
 			],
-			fsAdapter
+			fsAdapter,
 		);
 
 	const realAdapter: FilesystemAdapter = {
@@ -628,7 +634,7 @@ describe('filesystem adapter fault injection', () => {
 			{ keepCount: 0, allowEmpty: true },
 			true,
 			false,
-			adapter
+			adapter,
 		);
 		expect(result.failed).toBe(1);
 		expect(result.matched).toBe(1);
@@ -665,7 +671,7 @@ describe('filesystem adapter fault injection', () => {
 			{ keepCount: 0, allowEmpty: true },
 			true,
 			false,
-			adapter
+			adapter,
 		);
 		expect(result.failed).toBe(2);
 		expect(result.matched).toBe(0);
@@ -695,7 +701,7 @@ describe('filesystem adapter fault injection', () => {
 			{ keepCount: 0, allowEmpty: true },
 			false,
 			false,
-			adapter
+			adapter,
 		);
 		// dirToDelete fails listing lstat (failed=1); sentinel is matched in dry-run (matched=1)
 		expect(result.failed).toBe(1);
@@ -726,7 +732,7 @@ describe('filesystem adapter fault injection', () => {
 			{ keepCount: 0, allowEmpty: true },
 			true,
 			false,
-			adapter
+			adapter,
 		);
 		expect(result.failed).toBe(1);
 		expect(result.matched).toBe(0);
@@ -757,7 +763,7 @@ describe('filesystem adapter fault injection', () => {
 					fs.symlinkSync(
 						realElsewhere,
 						dirToDelete,
-						process.platform === 'win32' ? 'junction' : 'dir'
+						process.platform === 'win32' ? 'junction' : 'dir',
 					);
 					fs.writeFileSync(path.join(tempRoot, '.swapped'), 'done');
 				}
@@ -774,7 +780,7 @@ describe('filesystem adapter fault injection', () => {
 			{ keepCount: 0, allowEmpty: true },
 			true,
 			false,
-			adapter
+			adapter,
 		);
 		expect(result.failed).toBe(2);
 		expect(result.matched).toBe(0);
@@ -816,14 +822,14 @@ describe('filesystem adapter fault injection', () => {
 					retention: { allowEmpty: true, keepCount: 0 },
 				},
 			],
-			adapter
+			adapter,
 		);
 		const result = processTarget(
 			plan[0]!,
 			{ keepCount: 0, allowEmpty: true },
 			true,
 			false,
-			adapter
+			adapter,
 		);
 		// d1: rm failure (failed), d2: protected .env (failed), d3: success (matched)
 		expect(result.failed).toBe(2);
@@ -862,7 +868,7 @@ describe('filesystem adapter fault injection', () => {
 			{ allowEmpty: true, keepCount: 0 },
 			true,
 			false,
-			realAdapter
+			realAdapter,
 		);
 		expect(result.failed).toBe(1);
 		expect(result.matched).toBe(0);

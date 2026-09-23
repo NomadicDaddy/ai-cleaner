@@ -52,13 +52,13 @@ const legacyTargetFromEntry = (
 	targetPath: string,
 	dirent: fs.Dirent,
 	config: Config,
-	explicitPaths: Set<string>
+	explicitPaths: Set<string>,
 ): CleanupTarget | undefined => {
 	const subPath = path.join(targetPath, dirent.name);
 	const expandedSubPath = normalizeForCompare(expandPath(subPath));
 	if (explicitPaths.has(expandedSubPath)) {
 		console.log(
-			`Skipping legacy entry already covered by explicit target: ${formatLogValue(subPath)}`
+			`Skipping legacy entry already covered by explicit target: ${formatLogValue(subPath)}`,
 		);
 		return undefined;
 	}
@@ -73,7 +73,7 @@ const legacyTargetFromEntry = (
 const legacyTargetsFromOneRoot = (
 	targetPath: string,
 	config: Config,
-	explicitPaths: Set<string>
+	explicitPaths: Set<string>,
 ): CleanupTarget[] => {
 	const root = planRoot(targetPath, `targetPaths entry ${targetPath}`);
 	const entries = readLegacyRootEntries(root.resolvedPath);
@@ -95,7 +95,7 @@ const legacyTargetsFromOneRoot = (
 
 export const legacyTargetsFromConfig = (
 	config: Config,
-	explicitPaths: Set<string>
+	explicitPaths: Set<string>,
 ): CleanupTarget[] => {
 	const targets: CleanupTarget[] = [];
 	for (const targetPath of config.targetPaths ?? []) {

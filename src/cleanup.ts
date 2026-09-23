@@ -29,14 +29,14 @@ export const skipInactiveTarget = (target: CleanupTarget, aggressive: boolean): 
 	const result: ProcessResult = { matched: 0, skipped: 0, failed: 0 };
 	if (target.enabled === false) {
 		console.log(
-			`\nSkipping disabled target: ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}`
+			`\nSkipping disabled target: ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}`,
 		);
 		result.skipped++;
 		return result;
 	}
 	if (target.risk === 'aggressive' && !aggressive) {
 		console.log(
-			`\nSkipping aggressive target: ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}`
+			`\nSkipping aggressive target: ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}`,
 		);
 		result.skipped++;
 		return result;
@@ -58,7 +58,7 @@ const lstatRoot = (root: PlannedRoot, fsAdapter: FilesystemAdapter): fs.Stats | 
 			return { status: 'missing' };
 		}
 		console.error(
-			`Cannot inspect ${formatLogValue(root.resolvedPath)}: ${formatErrorMessage(err)}`
+			`Cannot inspect ${formatLogValue(root.resolvedPath)}: ${formatErrorMessage(err)}`,
 		);
 		return { status: 'failed' };
 	}
@@ -71,7 +71,7 @@ const inspectRoot = (root: PlannedRoot, fsAdapter: FilesystemAdapter): RootInspe
 	}
 	if (rootStats.isSymbolicLink()) {
 		console.error(
-			`Refusing symbolic link or junction cleanup root: ${formatLogValue(root.resolvedPath)}`
+			`Refusing symbolic link or junction cleanup root: ${formatLogValue(root.resolvedPath)}`,
 		);
 		return { status: 'failed' };
 	}
@@ -86,13 +86,13 @@ const inspectRoot = (root: PlannedRoot, fsAdapter: FilesystemAdapter): RootInspe
 const classifyDirectoryEntry = (
 	artifactPath: string,
 	kind: ArtifactKind,
-	fsAdapter: FilesystemAdapter
+	fsAdapter: FilesystemAdapter,
 ): { artifact?: Artifact; failed: boolean } => {
 	try {
 		const stats = fsAdapter.lstatSync(artifactPath);
 		if (stats.isSymbolicLink()) {
 			console.error(
-				`Refusing symbolic link or junction artifact: ${formatLogValue(artifactPath)}`
+				`Refusing symbolic link or junction artifact: ${formatLogValue(artifactPath)}`,
 			);
 			return { failed: true };
 		}
@@ -112,14 +112,14 @@ const classifyDirectoryEntry = (
 const collectDirectoryArtifacts = (
 	root: PlannedRoot,
 	kind: ArtifactKind,
-	fsAdapter: FilesystemAdapter
+	fsAdapter: FilesystemAdapter,
 ): { artifacts: Artifact[]; failed: number } => {
 	let entries: fs.Dirent[];
 	try {
 		entries = fsAdapter.readdirSync(root.resolvedPath);
 	} catch (err) {
 		console.error(
-			`Cannot read ${formatLogValue(root.resolvedPath)}: ${formatErrorMessage(err)}`
+			`Cannot read ${formatLogValue(root.resolvedPath)}: ${formatErrorMessage(err)}`,
 		);
 		return { artifacts: [], failed: 1 };
 	}
@@ -129,7 +129,7 @@ const collectDirectoryArtifacts = (
 		const classified = classifyDirectoryEntry(
 			path.join(root.resolvedPath, dirent.name),
 			kind,
-			fsAdapter
+			fsAdapter,
 		);
 		if (classified.failed) {
 			failed++;
@@ -145,7 +145,7 @@ const collectDirectoryArtifacts = (
 const listArtifacts = (
 	root: PlannedRoot,
 	kind: ArtifactKind,
-	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter,
 ): { artifacts: Artifact[]; failed: number } => {
 	const inspection = inspectRoot(root, fsAdapter);
 	if (inspection.status === 'missing') {
@@ -170,7 +170,7 @@ const selectArtifactsToDelete = (artifacts: Artifact[], policy: RetentionPolicy)
 	// which would select every artifact for deletion.
 	if (policy.keepDays === undefined) {
 		throw new Error(
-			'Retention policy must define keepCount or keepDays; refusing to treat keepDays as 0.'
+			'Retention policy must define keepCount or keepDays; refusing to treat keepDays as 0.',
 		);
 	}
 	const cutoff = Date.now() - policy.keepDays * 24 * 60 * 60 * 1000;
@@ -182,7 +182,7 @@ const processArtifact = (
 	artifact: Artifact,
 	apply: boolean,
 	result: ProcessResult,
-	fsAdapter: FilesystemAdapter
+	fsAdapter: FilesystemAdapter,
 ): void => {
 	try {
 		revalidateContainment(root, artifact.path, fsAdapter);
@@ -201,7 +201,7 @@ const processArtifact = (
 		result.matched++;
 	} catch (err) {
 		console.error(
-			`Refusing or failing to delete ${formatLogValue(artifact.path)}: ${formatErrorMessage(err)}`
+			`Refusing or failing to delete ${formatLogValue(artifact.path)}: ${formatErrorMessage(err)}`,
 		);
 		result.failed++;
 	}
@@ -239,7 +239,7 @@ export const processTarget = (
 	defaultRetention: RetentionPolicy,
 	apply: boolean,
 	aggressive: boolean,
-	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter,
 ): ProcessResult => {
 	const { target, roots } = plannedTarget;
 	const policy = target.retention ?? defaultRetention;

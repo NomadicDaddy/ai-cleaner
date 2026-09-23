@@ -115,7 +115,7 @@ describe('configuration validation', () => {
 						tool: 'test',
 					},
 				],
-			})
+			}),
 		);
 
 		const result = await runCli(['--config', configPath]);
@@ -213,7 +213,7 @@ describe('path safety', () => {
 		const overlapConfig = path.join(root, 'overlap.json');
 		fs.writeFileSync(
 			overlapConfig,
-			JSON.stringify({ targets: [targetFor(root), targetFor(child, { name: 'Child' })] })
+			JSON.stringify({ targets: [targetFor(root), targetFor(child, { name: 'Child' })] }),
 		);
 		const overlapResult = await runCli(['--config', overlapConfig]);
 		expect(overlapResult.exitCode).toBe(1);
@@ -371,7 +371,7 @@ describe('CLI and packaged defaults', () => {
 
 	test('the bundled config covers every canonical agent home safely', () => {
 		const config = JSON.parse(
-			fs.readFileSync(path.join(repositoryRoot, 'config.json'), 'utf8')
+			fs.readFileSync(path.join(repositoryRoot, 'config.json'), 'utf8'),
 		) as {
 			presets: Record<string, TestTarget[]>;
 		};

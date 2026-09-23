@@ -16,7 +16,7 @@ const validateAggressiveOptions = (options: CliOptions, aggressive: boolean): vo
 	}
 	if (options.apply && aggressive && !options.confirmAggressive) {
 		throw new CliError(
-			'Applied aggressive cleanup requires --confirm-aggressive for noninteractive confirmation.'
+			'Applied aggressive cleanup requires --confirm-aggressive for noninteractive confirmation.',
 		);
 	}
 };
@@ -36,12 +36,12 @@ const assembleTargets = (config: Config, aggressive: boolean): CleanupTarget[] =
 	// Only processable explicit targets claim paths for legacy dedup — inactive
 	// targets must not expand environment variables or resolve filesystem paths.
 	const processableExplicit = explicitTargets.filter((target) =>
-		isTargetProcessable(target, aggressive)
+		isTargetProcessable(target, aggressive),
 	);
 	const explicitPaths = new Set(
 		processableExplicit.flatMap((target) =>
-			target.paths.map((configuredPath) => normalizeForCompare(expandPath(configuredPath)))
-		)
+			target.paths.map((configuredPath) => normalizeForCompare(expandPath(configuredPath))),
+		),
 	);
 	return [...explicitTargets, ...legacyTargetsFromConfig(config, explicitPaths)];
 };
@@ -57,7 +57,7 @@ const processConfiguredTargets = (
 	config: Config,
 	options: CliOptions,
 	aggressive: boolean,
-	fsAdapter: FilesystemAdapter
+	fsAdapter: FilesystemAdapter,
 ): ProcessResult => {
 	// Partition before planning so disabled / inactive-aggressive targets never
 	// expand, canonicalize, inspect, or overlap-check their paths. Iterate the
@@ -83,8 +83,8 @@ const processConfiguredTargets = (
 				config.defaultRetention ?? DEFAULT_RETENTION,
 				options.apply,
 				aggressive,
-				fsAdapter
-			)
+				fsAdapter,
+			),
 		);
 	}
 	return totals;
@@ -111,7 +111,7 @@ export const run = (fsAdapter: FilesystemAdapter = defaultFilesystemAdapter): nu
 	const totals = processConfiguredTargets(targets, config, options, aggressive, fsAdapter);
 	console.log(
 		`\nCleanup complete. Matched for deletion: ${totals.matched}. ` +
-			`Skipped: ${totals.skipped}. Failed or refused: ${totals.failed}.`
+			`Skipped: ${totals.skipped}. Failed or refused: ${totals.failed}.`,
 	);
 	return totals.failed === 0 ? 0 : 1;
 };

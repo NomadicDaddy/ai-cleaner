@@ -45,8 +45,8 @@ const PROTECTED_TREES: string[] = (
 
 const EXACT_ONLY_ROOTS: Set<string> = new Set(
 	[...(process.platform === 'win32' ? WIN_EXACT_ONLY : POSIX_EXACT_ONLY), os.homedir()].map(
-		normalize
-	)
+		normalize,
+	),
 );
 
 const isFilesystemRoot = (candidatePath: string): boolean => {

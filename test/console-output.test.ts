@@ -76,7 +76,7 @@ const planSimpleTarget = (artifactRoot: string, fsAdapter: FilesystemAdapter) =>
 				tool: 'test',
 			},
 		],
-		fsAdapter
+		fsAdapter,
 	);
 
 describe('formatErrorMessage encoding contract', () => {
@@ -250,7 +250,7 @@ describe('malicious configured paths in error output', () => {
 						tool: 'test',
 					},
 				],
-			})
+			}),
 		);
 
 		const result = await runCli(['--config', configPath]);
@@ -281,7 +281,7 @@ describe('malicious configured paths in error output', () => {
 			configPath,
 			JSON.stringify({
 				usePresets: [maliciousPreset],
-			})
+			}),
 		);
 
 		const result = await runCli(['--config', configPath]);
@@ -393,7 +393,7 @@ describe('filesystem and OS error messages at emission boundaries', () => {
 				{ allowEmpty: true, keepCount: 0 },
 				false,
 				false,
-				adapter
+				adapter,
 			);
 			expect(result.failed).toBe(1);
 		});
@@ -401,7 +401,7 @@ describe('filesystem and OS error messages at emission boundaries', () => {
 		expect(stderr).toContain('Cannot inspect');
 		assertSingleLayerEscaping(stderr);
 		expect(
-			stderr.split(NEWLINE).filter((line) => line.includes('Cannot inspect'))
+			stderr.split(NEWLINE).filter((line) => line.includes('Cannot inspect')),
 		).toHaveLength(1);
 	});
 
@@ -427,7 +427,7 @@ describe('filesystem and OS error messages at emission boundaries', () => {
 				{ allowEmpty: true, keepCount: 0 },
 				true,
 				false,
-				adapter
+				adapter,
 			);
 			expect(result.failed).toBe(1);
 		});
@@ -435,7 +435,7 @@ describe('filesystem and OS error messages at emission boundaries', () => {
 		expect(stderr).toContain('Cannot read');
 		assertSingleLayerEscaping(stderr);
 		expect(stderr.split(NEWLINE).filter((line) => line.includes('Cannot read'))).toHaveLength(
-			1
+			1,
 		);
 	});
 
@@ -468,7 +468,7 @@ describe('filesystem and OS error messages at emission boundaries', () => {
 				{ allowEmpty: true, keepCount: 0 },
 				true,
 				false,
-				adapter
+				adapter,
 			);
 			expect(result.failed).toBeGreaterThanOrEqual(1);
 		});
@@ -502,7 +502,7 @@ describe('filesystem and OS error messages at emission boundaries', () => {
 				{ allowEmpty: true, keepCount: 0 },
 				true,
 				false,
-				adapter
+				adapter,
 			);
 			expect(result.failed).toBe(1);
 			expect(result.matched).toBe(0);
@@ -511,7 +511,7 @@ describe('filesystem and OS error messages at emission boundaries', () => {
 		expect(stderr).toContain('Refusing or failing to delete');
 		assertSingleLayerEscaping(stderr);
 		expect(
-			stderr.split(NEWLINE).filter((line) => line.includes('Refusing or failing to delete'))
+			stderr.split(NEWLINE).filter((line) => line.includes('Refusing or failing to delete')),
 		).toHaveLength(1);
 		expect(fs.existsSync(dirToDelete)).toBeTrue();
 	});

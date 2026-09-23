@@ -21,7 +21,7 @@ interface RunResult {
 const runBundle = async (args: string[], cwd: string): Promise<RunResult> => {
 	if (!fs.existsSync(bundlePath)) {
 		throw new Error(
-			`dist/ai-cleaner.js does not exist. Run "bun run build:bundle" before verification.`
+			`dist/ai-cleaner.js does not exist. Run "bun run build:bundle" before verification.`,
 		);
 	}
 	const handle = Bun.spawn([process.execPath, '--no-env-file', bundlePath, ...args], {

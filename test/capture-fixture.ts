@@ -34,7 +34,7 @@ const syntheticPng = (): Buffer => {
 
 export const commitFixtureFiles = (
 	root: string,
-	files: Record<string, string>
+	files: Record<string, string>,
 ): { commit: string; tree: string } => {
 	for (const [relativePath, contents] of Object.entries(files)) {
 		const target = path.join(root, relativePath);
@@ -58,7 +58,7 @@ export const captureDeclaredFixture = (root: string): { commit: string; tree: st
 
 export const writeCaptureEvidence = (
 	root: string,
-	identity: { commit: string; tree: string }
+	identity: { commit: string; tree: string },
 ): void => {
 	const run = '01234567-89ab-cdef-0123-456789abcdef';
 	const routes = captureContract.routes;
@@ -107,7 +107,7 @@ export const writeCaptureEvidence = (
 	fs.writeFileSync(path.join(runDir, 'crawl-result.json'), JSON.stringify(manifest));
 	fs.writeFileSync(
 		path.join(root, 'screenshots', 'v1.2.0', 'release-run.json'),
-		JSON.stringify({ run })
+		JSON.stringify({ run }),
 	);
 };
 

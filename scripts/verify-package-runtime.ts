@@ -29,7 +29,7 @@ export const runPacked = async (
 	entryPoint: string,
 	args: string[],
 	cwd: string,
-	env?: NodeJS.ProcessEnv
+	env?: NodeJS.ProcessEnv,
 ): Promise<RunResult> => {
 	const handle = Bun.spawn([process.execPath, '--no-env-file', entryPoint, ...args], {
 		cwd,
@@ -59,7 +59,7 @@ export const verifyDryRun = async (entryPoint: string, cwd: string): Promise<voi
 	const result = await runPacked(entryPoint, [], cwd);
 	if (result.exitCode !== 0) {
 		throw new Error(
-			`packed bare invocation exited ${result.exitCode}; stderr:\n${result.stderr}`
+			`packed bare invocation exited ${result.exitCode}; stderr:\n${result.stderr}`,
 		);
 	}
 	if (!result.stdout.includes('DRY RUN MODE ENABLED')) {
@@ -103,28 +103,28 @@ export const verifyDotenvIsolation = async (entryPoint: string, cwd: string): Pr
 					tool: 'verify',
 				},
 			],
-		})
+		}),
 	);
 
 	const ignored = await runPacked(
 		entryPoint,
 		['--config', configPath],
 		cwd,
-		envWithout(DOTENV_PROBE_VAR)
+		envWithout(DOTENV_PROBE_VAR),
 	);
 	if (ignored.exitCode === 0) {
 		throw new Error(
-			`packed dotenv isolation expected unavailable-variable failure; stdout:\n${ignored.stdout}\nstderr:\n${ignored.stderr}`
+			`packed dotenv isolation expected unavailable-variable failure; stdout:\n${ignored.stdout}\nstderr:\n${ignored.stderr}`,
 		);
 	}
 	if (!ignored.stderr.includes('unavailable environment variable')) {
 		throw new Error(
-			`packed dotenv isolation missing expansion error; stderr:\n${ignored.stderr}`
+			`packed dotenv isolation missing expansion error; stderr:\n${ignored.stderr}`,
 		);
 	}
 	if (!ignored.stderr.includes(DOTENV_PROBE_VAR)) {
 		throw new Error(
-			`packed dotenv isolation missing variable name; stderr:\n${ignored.stderr}`
+			`packed dotenv isolation missing variable name; stderr:\n${ignored.stderr}`,
 		);
 	}
 
@@ -132,21 +132,21 @@ export const verifyDotenvIsolation = async (entryPoint: string, cwd: string): Pr
 		entryPoint,
 		['--config', configPath],
 		cwd,
-		envWithout(DOTENV_PROBE_VAR, { [DOTENV_PROBE_VAR]: realRoot })
+		envWithout(DOTENV_PROBE_VAR, { [DOTENV_PROBE_VAR]: realRoot }),
 	);
 	if (expanded.exitCode !== 0) {
 		throw new Error(
-			`packed OS env expansion exited ${expanded.exitCode}; stderr:\n${expanded.stderr}`
+			`packed OS env expansion exited ${expanded.exitCode}; stderr:\n${expanded.stderr}`,
 		);
 	}
 	if (!expanded.stdout.includes('DRY RUN MODE ENABLED')) {
 		throw new Error(
-			`packed OS env expansion missing dry-run marker; stdout:\n${expanded.stdout}`
+			`packed OS env expansion missing dry-run marker; stdout:\n${expanded.stdout}`,
 		);
 	}
 	if (expanded.stdout.includes(poisonRoot)) {
 		throw new Error(
-			`packed run still resolved dotenv poison root; stdout:\n${expanded.stdout}`
+			`packed run still resolved dotenv poison root; stdout:\n${expanded.stdout}`,
 		);
 	}
 };

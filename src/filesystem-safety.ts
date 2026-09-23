@@ -47,7 +47,7 @@ export const expandPath = (inputPath: string): string => {
 		if (value === undefined || value.length === 0) {
 			// Untrusted path stays raw; formatErrorMessage at emission encodes it once.
 			throw new Error(
-				`Path references unavailable environment variable ${name}: ${inputPath}`
+				`Path references unavailable environment variable ${name}: ${inputPath}`,
 			);
 		}
 		return value;
@@ -74,7 +74,7 @@ const isSensitivePath = (candidatePath: string): boolean => {
 const assertPathHasNoLinks = (
 	candidatePath: string,
 	label: string,
-	fsAdapter: FilesystemAdapter
+	fsAdapter: FilesystemAdapter,
 ): void => {
 	const resolved = path.resolve(candidatePath);
 	const root = path.parse(resolved).root;
@@ -117,7 +117,7 @@ const assertNotDangerousRoot = (candidatePath: string, label: string, kind: stri
 const resolveCanonicalPath = (
 	resolvedPath: string,
 	label: string,
-	fsAdapter: FilesystemAdapter
+	fsAdapter: FilesystemAdapter,
 ): string => {
 	try {
 		return fsAdapter.realpathSync(resolvedPath);
@@ -134,7 +134,7 @@ const resolveCanonicalPath = (
 const assertExistingRootIsDirectory = (
 	candidatePath: string,
 	label: string,
-	fsAdapter: FilesystemAdapter
+	fsAdapter: FilesystemAdapter,
 ): void => {
 	let stats: fs.Stats;
 	try {
@@ -159,7 +159,7 @@ const assertExistingRootIsDirectory = (
 export const planRoot = (
 	configuredPath: string,
 	label: string,
-	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter,
 ): PlannedRoot => {
 	const resolvedPath = expandPath(configuredPath);
 	assertNotDangerousRoot(resolvedPath, label, 'cleanup');
@@ -182,7 +182,7 @@ const assertNoOverlappingRoots = (roots: PlannedRoot[]): void => {
 			if (isWithinOrEqual(firstPath, secondPath) || isWithinOrEqual(secondPath, firstPath)) {
 				throw new Error(
 					`Cleanup roots overlap (${first.label}: ${first.resolvedPath}; ` +
-						`${second.label}: ${second.resolvedPath}).`
+						`${second.label}: ${second.resolvedPath}).`,
 				);
 			}
 		}
@@ -191,12 +191,12 @@ const assertNoOverlappingRoots = (roots: PlannedRoot[]): void => {
 
 export const buildTargetPlan = (
 	targets: CleanupTarget[],
-	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter,
 ): PlannedTarget[] => {
 	const plannedTargets = targets.map((target, targetIndex) => ({
 		target,
 		roots: target.paths.map((configuredPath, pathIndex) =>
-			planRoot(configuredPath, `targets[${targetIndex}].paths[${pathIndex}]`, fsAdapter)
+			planRoot(configuredPath, `targets[${targetIndex}].paths[${pathIndex}]`, fsAdapter),
 		),
 	}));
 	assertNoOverlappingRoots(plannedTargets.flatMap((target) => target.roots));
@@ -225,7 +225,7 @@ const readdirOrThrow = (candidatePath: string, fsAdapter: FilesystemAdapter): fs
 
 const inspectDirectoryDescendants = (
 	artifactPath: string,
-	fsAdapter: FilesystemAdapter
+	fsAdapter: FilesystemAdapter,
 ): string | undefined => {
 	for (const entry of readdirOrThrow(artifactPath, fsAdapter)) {
 		const found = inspectProtectedSubtree(path.join(artifactPath, entry.name), fsAdapter);
@@ -236,7 +236,7 @@ const inspectDirectoryDescendants = (
 
 export const inspectProtectedSubtree = (
 	artifactPath: string,
-	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter,
 ): string | undefined => {
 	// Descriptions stay raw; formatErrorMessage at the delete-refusal emission encodes once.
 	if (isSensitivePath(artifactPath)) {
@@ -253,7 +253,7 @@ export const inspectProtectedSubtree = (
 export const revalidateContainment = (
 	root: PlannedRoot,
 	artifactPath: string,
-	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter
+	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter,
 ): void => {
 	assertPathHasNoLinks(root.resolvedPath, root.label, fsAdapter);
 	const currentRoot = fsAdapter.realpathSync(root.resolvedPath);

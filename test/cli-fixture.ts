@@ -37,7 +37,7 @@ export const writeConfig = (root: string, targets: TestTarget[]): string => {
 	const configPath = path.join(root, 'config.json');
 	fs.writeFileSync(
 		configPath,
-		JSON.stringify({ defaultRetention: { keepCount: 5 }, targets }, null, 2)
+		JSON.stringify({ defaultRetention: { keepCount: 5 }, targets }, null, 2),
 	);
 	return configPath;
 };
@@ -76,7 +76,7 @@ const buildSpawnEnv = (overrides?: RunCliEnv): NodeJS.ProcessEnv | undefined => 
 
 export const runCli = async (
 	args: string[],
-	cwdOrOptions: string | RunCliOptions = repositoryRoot
+	cwdOrOptions: string | RunCliOptions = repositoryRoot,
 ): Promise<CliResult> => {
 	const options = resolveRunCliOptions(cwdOrOptions);
 	const spawnEnv = buildSpawnEnv(options.env);
@@ -96,7 +96,7 @@ export const runCli = async (
 
 export const targetFor = (
 	artifactRoot: string,
-	overrides: Partial<TestTarget> = {}
+	overrides: Partial<TestTarget> = {},
 ): TestTarget => ({
 	kind: 'any',
 	name: 'Test artifacts',

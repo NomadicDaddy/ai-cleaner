@@ -74,7 +74,7 @@ const isForbiddenArchiveEntry = (entry: string): boolean => {
 		return true;
 	}
 	return FORBIDDEN_ARCHIVE_PREFIXES.some(
-		(prefix) => bare === prefix || bare.startsWith(`${prefix}/`)
+		(prefix) => bare === prefix || bare.startsWith(`${prefix}/`),
 	);
 };
 
@@ -98,7 +98,7 @@ const assertArchiveContents = (archivePaths: string[], runtimeModules: string[])
 	const forbiddenHits = archivePaths.filter(isForbiddenArchiveEntry);
 	if (forbiddenHits.length > 0) {
 		throw new Error(
-			`packed archive contains development artifacts:\n${forbiddenHits.join('\n')}`
+			`packed archive contains development artifacts:\n${forbiddenHits.join('\n')}`,
 		);
 	}
 };
@@ -118,7 +118,7 @@ const resolveTarballPath = (packDir: string, packStdout: string): string => {
 	const candidates = fs.readdirSync(packDir).filter((name) => name.endsWith('.tgz'));
 	if (candidates.length !== 1) {
 		throw new Error(
-			`expected exactly one tarball in ${packDir}; found: ${candidates.join(', ') || '(none)'}; pack stdout:\n${packStdout}`
+			`expected exactly one tarball in ${packDir}; found: ${candidates.join(', ') || '(none)'}; pack stdout:\n${packStdout}`,
 		);
 	}
 	return path.join(packDir, candidates[0]!);
@@ -127,11 +127,11 @@ const resolveTarballPath = (packDir: string, packStdout: string): string => {
 const packTarball = async (packDir: string): Promise<string> => {
 	const result = await runCommand(
 		['bun', 'pm', 'pack', '--destination', packDir, '--quiet'],
-		repositoryRoot
+		repositoryRoot,
 	);
 	if (result.exitCode !== 0) {
 		throw new Error(
-			`bun pm pack failed (${result.exitCode}):\n${result.stderr}\n${result.stdout}`
+			`bun pm pack failed (${result.exitCode}):\n${result.stderr}\n${result.stdout}`,
 		);
 	}
 	return resolveTarballPath(packDir, result.stdout);
@@ -140,7 +140,7 @@ const packTarball = async (packDir: string): Promise<string> => {
 const extractTarball = async (
 	tarballPath: string,
 	extractDir: string,
-	tempRoot: string
+	tempRoot: string,
 ): Promise<string> => {
 	fs.mkdirSync(extractDir, { recursive: true });
 	// Relative POSIX operands only: GNU tar parses drive-letter absolute paths (C:\...) as
@@ -195,7 +195,7 @@ const main = async (): Promise<void> => {
 	}
 
 	console.log(
-		'Package verification passed: packed archive contents, external-cwd --help/dry-run, and dotenv isolation.'
+		'Package verification passed: packed archive contents, external-cwd --help/dry-run, and dotenv isolation.',
 	);
 };
 
