@@ -90,12 +90,33 @@ const writeExecutable = (filePath: string, contents: string): void => {
 };
 
 const installRealHooks = (hooksDir: string): void => {
-	for (const name of ['pre-push', 'aidd-history-guard.sh', 'screenshot-guard.sh'] as const) {
+	// Keep this list in step with every guard pre-push invokes. The 10/07 fleet sync
+	// added force-push-guard.sh as the first call, and a fixture missing it fails the
+	// whole chain with exit 127 rather than the guard result under test.
+	for (const name of [
+		'pre-push',
+		'force-push-guard.sh',
+		'aidd-history-guard.sh',
+		'screenshot-guard.sh',
+	] as const) {
 		writeExecutable(
 			path.join(hooksDir, name),
 			fs.readFileSync(path.join(repositoryRoot, '.githooks', name), 'utf8'),
 		);
 	}
+};
+
+// pre-push calls force-push-guard.sh before the stages these tests exercise, so a
+// test that stubs only the later guards needs the first one to PASS rather than be
+// absent: an absent guard fails the whole chain with 127 and hides the assertion.
+const writePassingForcePushStub = (hooksDir: string): void => {
+	writeExecutable(
+		path.join(hooksDir, 'force-push-guard.sh'),
+		`#!/usr/bin/env bash
+set -euo pipefail
+exit 0
+`,
+	);
 };
 
 const writePngs = (dir: string, count: number): void => {
@@ -228,6 +249,7 @@ describe('pre-push screenshot guard wiring', () => {
 			path.join(hooksDir, 'pre-push'),
 			fs.readFileSync(path.join(repositoryRoot, '.githooks', 'pre-push'), 'utf8'),
 		);
+		writePassingForcePushStub(hooksDir);
 		writeExecutable(
 			path.join(hooksDir, 'aidd-history-guard.sh'),
 			`#!/usr/bin/env bash
@@ -272,6 +294,7 @@ exit 1
 			path.join(hooksDir, 'pre-push'),
 			fs.readFileSync(path.join(repositoryRoot, '.githooks', 'pre-push'), 'utf8'),
 		);
+		writePassingForcePushStub(hooksDir);
 		writeExecutable(
 			path.join(hooksDir, 'aidd-history-guard.sh'),
 			`#!/usr/bin/env bash
