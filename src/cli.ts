@@ -9,6 +9,7 @@ Options:
   --apply                 Delete selected artifacts
   --aggressive            Process targets marked risk: aggressive
   --confirm-aggressive    Confirm aggressive deletion (required with --apply --aggressive)
+  --older-than <age>      Narrow selection to artifacts older than <age> (for example 30d)
   --help, -h              Show this help
 
 See config.json and README.md for the configuration format.`;
@@ -19,6 +20,7 @@ export interface CliOptions {
 	confirmAggressive: boolean;
 	configPath?: string;
 	help: boolean;
+	olderThanDays?: number;
 }
 
 export class CliError extends Error {}
@@ -41,6 +43,22 @@ const requireConfigPath = (state: ParseState): string => {
 	return next;
 };
 
+/** Accepted --older-than values: a positive integer day count suffixed with d. */
+const OLDER_THAN_PATTERN = /^([1-9][0-9]*)d$/;
+
+const requireOlderThanDays = (state: ParseState): number => {
+	const next = state.args[state.index + 1];
+	if (next === undefined || next.startsWith('-')) {
+		throw new CliError('--older-than requires an age argument such as 30d.');
+	}
+	const match = OLDER_THAN_PATTERN.exec(next);
+	if (match === null) {
+		throw new CliError('--older-than requires a positive age in days, for example 30d.');
+	}
+	state.index++;
+	return Number(match[1]);
+};
+
 const FLAG_HANDLERS: Record<string, FlagHandler> = {
 	'--dry-run': (state) => {
 		state.explicitDryRun = true;
@@ -56,6 +74,9 @@ const FLAG_HANDLERS: Record<string, FlagHandler> = {
 	},
 	'--config': (state) => {
 		state.options.configPath = requireConfigPath(state);
+	},
+	'--older-than': (state) => {
+		state.options.olderThanDays = requireOlderThanDays(state);
 	},
 	'--help': (state) => {
 		state.options.help = true;

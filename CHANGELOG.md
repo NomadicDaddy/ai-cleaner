@@ -5,6 +5,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `--older-than <age>` CLI filter (feature `older-than-cli-filter`, v1.3). The option accepts a
+  positive day count suffixed with `d` (for example `30d`), records it on `CliOptions` as
+  `olderThanDays`, and rejects a missing, malformed, or non-positive value as a `CliError`
+  (exit 2 with help text). The age composes with per-target retention in
+  `selectArtifactsToDelete` as an additional constraint: an artifact is selected only when the
+  target's `keepCount` or `keepDays` policy selects it _and_ it is older than the given age, so
+  the flag can only shrink a selection and never deletes artifacts retention would keep.
+  `processTarget` reports the active constraint (`Age filter: only artifacts older than N
+days`) so dry-run output shows the narrowing. `test/cli.test.ts` covers a terminal
+  `--older-than`, a value without the `d` suffix, and `0d` (all exit 2); the narrowing
+  composition with `keepCount` and with `keepDays`; and the unchanged selection when the flag
+  is omitted. `README.md` documents the flag in the usage block, the retention section, and an
+  apply example. `bun test`: 91 pass / 0 fail; `smoke:qc` passes end to end.
+
 ### Fixed
 
 - Closed testing audit finding `audit-testing-1785911839-hook-verification-encodes-the-removed-package-capability-gate`:

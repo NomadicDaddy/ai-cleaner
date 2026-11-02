@@ -98,6 +98,76 @@ describe('cleanup execution', () => {
 	});
 });
 
+describe('older-than filter', () => {
+	const ageArtifact = (artifactRoot: string, name: string, ageDays: number): string => {
+		const artifact = path.join(artifactRoot, name);
+		fs.writeFileSync(artifact, name);
+		const time = new Date(Date.now() - ageDays * 24 * 60 * 60 * 1000);
+		fs.utimesSync(artifact, time, time);
+		return artifact;
+	};
+
+	test('narrows a keepCount selection without widening it', async () => {
+		const root = createTemporaryRoot();
+		const artifactRoot = path.join(root, 'artifacts');
+		fs.mkdirSync(artifactRoot);
+		const ancient = ageArtifact(artifactRoot, 'ancient.log', 10);
+		const recent = ageArtifact(artifactRoot, 'recent.log', 0);
+		const configPath = writeConfig(root, [
+			targetFor(artifactRoot, { retention: { allowEmpty: true, keepCount: 0 } }),
+		]);
+
+		const preview = await runCli(['--config', configPath, '--older-than', '5d']);
+		expect(preview.exitCode).toBe(0);
+		expect(preview.stdout).toContain('Age filter: only artifacts older than 5 days');
+		expect(preview.stdout).toContain('[DRY RUN] Would delete:');
+		// Console output escapes path separators, so assert on file names.
+		expect(preview.stdout).toContain('ancient.log');
+		expect(preview.stdout).not.toContain('recent.log');
+		expect(fs.existsSync(ancient)).toBeTrue();
+		expect(fs.existsSync(recent)).toBeTrue();
+
+		const applied = await runCli(['--config', configPath, '--apply', '--older-than', '5d']);
+		expect(applied.exitCode).toBe(0);
+		expect(fs.existsSync(ancient)).toBeFalse();
+		expect(fs.existsSync(recent)).toBeTrue();
+	});
+
+	test('keeps the full retention selection when the flag is omitted', async () => {
+		const root = createTemporaryRoot();
+		const artifactRoot = path.join(root, 'artifacts');
+		fs.mkdirSync(artifactRoot);
+		const ancient = ageArtifact(artifactRoot, 'ancient.log', 10);
+		const recent = ageArtifact(artifactRoot, 'recent.log', 0);
+		const configPath = writeConfig(root, [
+			targetFor(artifactRoot, { retention: { allowEmpty: true, keepCount: 0 } }),
+		]);
+
+		const result = await runCli(['--config', configPath, '--apply']);
+		expect(result.exitCode).toBe(0);
+		expect(fs.existsSync(ancient)).toBeFalse();
+		expect(fs.existsSync(recent)).toBeFalse();
+	});
+
+	test('narrows a keepDays selection to artifacts past the age threshold', async () => {
+		const root = createTemporaryRoot();
+		const artifactRoot = path.join(root, 'artifacts');
+		fs.mkdirSync(artifactRoot);
+		const sevenDay = ageArtifact(artifactRoot, 'seven-day.log', 7);
+		const threeDay = ageArtifact(artifactRoot, 'three-day.log', 3);
+		const configPath = writeConfig(root, [
+			targetFor(artifactRoot, { retention: { keepDays: 1 } }),
+		]);
+
+		// keepDays: 1 alone selects both artifacts; the age filter must keep
+		// three-day.log, proving the flag only narrows the retention selection.
+		const result = await runCli(['--config', configPath, '--apply', '--older-than', '5d']);
+		expect(result.exitCode).toBe(0);
+		expect(fs.existsSync(sevenDay)).toBeFalse();
+		expect(fs.existsSync(threeDay)).toBeTrue();
+	});
+});
+
 describe('configuration validation', () => {
 	test('rejects malformed safety controls and empty paths', async () => {
 		const root = createTemporaryRoot();
@@ -310,6 +380,7 @@ describe('CLI and packaged defaults', () => {
 			expect(result.stdout).toContain('--config <path>');
 			expect(result.stdout).toContain('--dry-run');
 			expect(result.stdout).toContain('--apply');
+			expect(result.stdout).toContain('--older-than <age>');
 			expect(result.stdout).toContain('--help, -h');
 			expect(result.stdout).not.toContain('Starting AI Cleaner');
 			expect(result.stdout).not.toContain('DRY RUN MODE ENABLED');
@@ -343,6 +414,21 @@ describe('CLI and packaged defaults', () => {
 			args: (configPath) => ['--config', configPath, '--dry-run', '--apply'],
 			errorMarker: '--dry-run and --apply cannot be used together',
 			name: 'rejects --dry-run combined with --apply with exit code 2',
+		},
+		{
+			args: (configPath) => ['--config', configPath, '--older-than'],
+			errorMarker: '--older-than requires an age argument',
+			name: 'rejects a terminal --older-than without an age with exit code 2',
+		},
+		{
+			args: (configPath) => ['--config', configPath, '--older-than', '30'],
+			errorMarker: '--older-than requires a positive age in days',
+			name: 'rejects an --older-than value without the d suffix with exit code 2',
+		},
+		{
+			args: (configPath) => ['--config', configPath, '--older-than', '0d'],
+			errorMarker: '--older-than requires a positive age in days',
+			name: 'rejects a non-positive --older-than value with exit code 2',
 		},
 	];
 

@@ -84,6 +84,7 @@ const processConfiguredTargets = (
 				options.apply,
 				aggressive,
 				fsAdapter,
+				options.olderThanDays,
 			),
 		);
 	}

@@ -157,24 +157,43 @@ const listArtifacts = (
 	return collectDirectoryArtifacts(root, kind, fsAdapter);
 };
 
-const selectArtifactsToDelete = (artifacts: Artifact[], policy: RetentionPolicy): Artifact[] => {
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** The mtime below which an artifact counts as older than the given day count. */
+const keepDaysCutoff = (days: number): number => Date.now() - days * MS_PER_DAY;
+
+const selectArtifactsToDelete = (
+	artifacts: Artifact[],
+	policy: RetentionPolicy,
+	olderThanDays?: number,
+): Artifact[] => {
+	let selected: Artifact[];
 	if (policy.keepCount !== undefined) {
-		return artifacts
+		selected = artifacts
 			.slice()
 			.sort((first, second) => second.time - first.time)
 			.slice(policy.keepCount);
-	}
-	// Defensive: configuration parsing refuses policies that define neither
-	// keepCount nor keepDays, but processTarget accepts direct callers — a policy
-	// missing both must fail loudly rather than silently treat keepDays as 0,
-	// which would select every artifact for deletion.
-	if (policy.keepDays === undefined) {
+	} else if (policy.keepDays !== undefined) {
+		// Narrow into a local: keepDaysCutoff must not be called inside the filter
+		// closure, where TypeScript cannot keep the undefined check narrowed.
+		const keepDaysCutoffForPolicy = keepDaysCutoff(policy.keepDays);
+		selected = artifacts.filter((artifact) => artifact.time < keepDaysCutoffForPolicy);
+	} else {
+		// Defensive: configuration parsing refuses policies that define neither
+		// keepCount nor keepDays, but processTarget accepts direct callers — a policy
+		// missing both must fail loudly rather than silently treat keepDays as 0,
+		// which would select every artifact for deletion.
 		throw new Error(
 			'Retention policy must define keepCount or keepDays; refusing to treat keepDays as 0.',
 		);
 	}
-	const cutoff = Date.now() - policy.keepDays * 24 * 60 * 60 * 1000;
-	return artifacts.filter((artifact) => artifact.time < cutoff);
+	// The CLI age filter composes with retention as an additional constraint: it
+	// can only remove artifacts retention selected, never widen the selection.
+	if (olderThanDays === undefined) {
+		return selected;
+	}
+	const ageCutoff = keepDaysCutoff(olderThanDays);
+	return selected.filter((artifact) => artifact.time < ageCutoff);
 };
 
 const processArtifact = (
@@ -211,20 +230,23 @@ interface RootProcessContext {
 	apply: boolean;
 	fsAdapter: FilesystemAdapter;
 	kind: ArtifactKind;
+	// `| undefined` keeps the property assignable under exactOptionalPropertyTypes
+	// when callers pass an explicit olderThanDays: number | undefined.
+	olderThanDays?: number | undefined;
 	policy: RetentionPolicy;
 	result: ProcessResult;
 	root: PlannedRoot;
 }
 
 const processRoot = (context: RootProcessContext): void => {
-	const { apply, fsAdapter, kind, policy, result, root } = context;
+	const { apply, fsAdapter, kind, olderThanDays, policy, result, root } = context;
 	const scan = listArtifacts(root, kind, fsAdapter);
 	result.failed += scan.failed;
 	if (scan.artifacts.length === 0) {
 		console.log(`No matching artifacts under: ${formatLogValue(root.resolvedPath)}`);
 		return;
 	}
-	const toDelete = selectArtifactsToDelete(scan.artifacts, policy);
+	const toDelete = selectArtifactsToDelete(scan.artifacts, policy, olderThanDays);
 	if (toDelete.length === 0) {
 		console.log(`No artifacts to clean under: ${formatLogValue(root.resolvedPath)}`);
 		return;
@@ -240,6 +262,7 @@ export const processTarget = (
 	apply: boolean,
 	aggressive: boolean,
 	fsAdapter: FilesystemAdapter = defaultFilesystemAdapter,
+	olderThanDays?: number,
 ): ProcessResult => {
 	const { target, roots } = plannedTarget;
 	const policy = target.retention ?? defaultRetention;
@@ -254,9 +277,14 @@ export const processTarget = (
 
 	console.log(`\nAnalyzing ${formatLogValue(target.tool)} / ${formatLogValue(target.name)}...`);
 	console.log(`Policy: ${JSON.stringify(policy)}`);
+	if (olderThanDays !== undefined) {
+		console.log(
+			`Age filter: only artifacts older than ${olderThanDays} ${olderThanDays === 1 ? 'day' : 'days'}`,
+		);
+	}
 
 	for (const root of roots) {
-		processRoot({ apply, fsAdapter, kind, policy, result, root });
+		processRoot({ apply, fsAdapter, kind, olderThanDays, policy, result, root });
 	}
 	return result;
 };

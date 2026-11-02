@@ -29,8 +29,9 @@ ai-cleaner [options]
 --config <path>         Use another JSON configuration file
 --dry-run               Preview deletions (default)
 --apply                 Delete selected artifacts
---aggressive            Include targets marked aggressive
+--aggressive           Include targets marked aggressive
 --confirm-aggressive    Confirm applied aggressive cleanup
+--older-than <age>      Only select artifacts older than <age> (for example 30d)
 --help, -h              Show help
 ```
 
@@ -48,6 +49,9 @@ bun run start -- --apply
 
 # Apply aggressive targets after reviewing the preview
 bun run start -- --apply --aggressive --confirm-aggressive
+
+# Apply, deleting only artifacts older than 30 days
+bun run start -- --apply --older-than 30d
 
 # Use a configuration relative to the current directory
 bun run start -- --config ./my-cleaner.json
@@ -95,6 +99,11 @@ Each policy defines exactly one retention rule:
 - `keepCount: N` keeps the N newest immediate entries.
 - `keepDays: N` removes immediate entries older than N days.
 - `allowEmpty: true` is required with `keepCount: 0` or `keepDays: 0` (both are full-deletion forms).
+
+The `--older-than <age>` flag (for example `--older-than 30d`) narrows every target's selection
+to artifacts older than the given age. It composes with the retention policy as an additional
+constraint: an artifact is deleted only when the policy selects it **and** it passes the age
+threshold, so the flag can only shrink a selection, never widen it.
 
 Targets do not recurse to discover retention units. Point each target at a directory whose
 immediate children are independent disposable artifacts. Recursive deletion happens only after an

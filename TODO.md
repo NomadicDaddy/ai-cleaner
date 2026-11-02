@@ -1,4 +1,4 @@
-- \[ ] --older-than 30d
+- \[x\] --older-than 30d
 - \[ ] target specific agent(s)
 - \[ ] support cleaning: {HOME}\\.agent-browser
 
