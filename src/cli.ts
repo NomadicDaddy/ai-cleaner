@@ -5,6 +5,7 @@ Usage:
 
 Options:
   --config <path>         Path to config JSON (default: bundled config.json)
+  --agent <name>          Run only the named preset's targets (repeatable)
   --dry-run               Print actions without deleting (default)
   --apply                 Delete selected artifacts
   --aggressive            Process targets marked risk: aggressive
@@ -15,6 +16,7 @@ Options:
 See config.json and README.md for the configuration format.`;
 
 export interface CliOptions {
+	agentSelections?: string[];
 	aggressive: boolean;
 	apply: boolean;
 	confirmAggressive: boolean;
@@ -59,7 +61,20 @@ const requireOlderThanDays = (state: ParseState): number => {
 	return Number(match[1]);
 };
 
+const requireAgentSelection = (state: ParseState): string => {
+	const next = state.args[state.index + 1];
+	if (next === undefined || next.startsWith('-')) {
+		throw new CliError('--agent requires a preset name argument.');
+	}
+	state.index++;
+	return next;
+};
+
 const FLAG_HANDLERS: Record<string, FlagHandler> = {
+	'--agent': (state) => {
+		const selection = requireAgentSelection(state);
+		state.options.agentSelections = [...(state.options.agentSelections ?? []), selection];
+	},
 	'--dry-run': (state) => {
 		state.explicitDryRun = true;
 	},

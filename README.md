@@ -27,6 +27,7 @@ The package also exposes an `ai-cleaner` executable when installed or linked as 
 ai-cleaner [options]
 
 --config <path>         Use another JSON configuration file
+--agent <name>          Run only the named preset's targets (repeatable)
 --dry-run               Preview deletions (default)
 --apply                 Delete selected artifacts
 --aggressive           Include targets marked aggressive
@@ -50,8 +51,11 @@ bun run start -- --apply
 # Apply aggressive targets after reviewing the preview
 bun run start -- --apply --aggressive --confirm-aggressive
 
-# Apply, deleting only artifacts older than 30 days
-bun run start -- --apply --older-than 30d
+# Preview only Claude Code targets from the bundled configuration
+bun run start -- --agent claude-code
+
+# Apply, deleting only Cursor artifacts older than 30 days
+bun run start -- --apply --agent cursor --older-than 30d
 
 # Use a configuration relative to the current directory
 bun run start -- --config ./my-cleaner.json
@@ -91,6 +95,13 @@ path. Unknown fields and invalid values stop the run before any target is proces
 An empty preset records that an agent home was checked but has no proven disposable artifact
 surface. This prevents skill, agent, configuration, database, or authentication data from being
 targeted just to make the coverage list look complete.
+
+The `--agent <name>` flag restricts a run to the named preset without a custom configuration
+file. Repeat the flag to select several presets. Selections combine with `usePresets` by
+intersection: a preset runs only when it is both selected on the CLI and active in the
+configuration, and a selection that intersects no active preset processes no targets. While
+`--agent` is in effect only preset targets run — explicit `targets` and legacy `targetPaths`
+are skipped for that run.
 
 ### Retention
 

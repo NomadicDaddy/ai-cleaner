@@ -42,6 +42,17 @@ export const writeConfig = (root: string, targets: TestTarget[]): string => {
 	return configPath;
 };
 
+/** A preset-based configuration for --agent selection tests. */
+export const writePresetsConfig = (
+	root: string,
+	presets: Record<string, TestTarget[]>,
+	fields: { usePresets?: string[] } = {},
+): string => {
+	const configPath = path.join(root, 'presets.json');
+	fs.writeFileSync(configPath, JSON.stringify({ presets, ...fields }, null, 2));
+	return configPath;
+};
+
 type RunCliEnv = Record<string, string | undefined>;
 
 export interface RunCliOptions {

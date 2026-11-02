@@ -7,6 +7,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `--agent <name>` preset selection (feature `agent-selection-cli`, v1.3). The repeatable option
+  restricts a run to the named preset's targets without requiring a custom configuration file,
+  recording selections on `CliOptions` as `agentSelections`. `resolveAgentSelection` in
+  `src/run.ts` rejects a name absent from the loaded configuration's presets as a `CliError`
+  (exit 2 naming the selection, with an own-property guard against inherited names), intersects
+  the selection with config-level `usePresets`, and scopes the run to presets — explicit
+  `targets` and legacy `targetPaths` are skipped while a selection is in effect. An empty
+  intersection processes no targets and reports that state; selecting a preset configured empty
+  reports no targets rather than failing, preserving the empty-preset doctrine. `HELP_TEXT` and
+  `README.md` document the flag with intersection semantics. `test/cli.test.ts` covers a bundled
+  single selection, multi-select via repeated flags, an unknown name (exit 2), a terminal
+  `--agent`, an empty-preset selection, the `usePresets` intersection, the empty intersection,
+  and explicit-target skipping. `bun test`: 100 pass / 0 fail; `smoke:qc` passes end to end.
+
 - `--older-than <age>` CLI filter (feature `older-than-cli-filter`, v1.3). The option accepts a
   positive day count suffixed with `d` (for example `30d`), records it on `CliOptions` as
   `olderThanDays`, and rejects a missing, malformed, or non-positive value as a `CliError`

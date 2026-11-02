@@ -10,6 +10,7 @@ import {
 	runCli,
 	targetFor,
 	writeConfig,
+	writePresetsConfig,
 } from './cli-fixture.ts';
 
 afterEach(cleanupTemporaryRoots);
@@ -95,6 +96,150 @@ describe('cleanup execution', () => {
 		]);
 		expect(confirmed.exitCode).toBe(0);
 		expect(fs.existsSync(artifact)).toBeFalse();
+	});
+});
+
+describe('agent selection', () => {
+	const createPresetFixture = (
+		root: string,
+		presetName: string,
+	): { artifact: string; artifactRoot: string } => {
+		const artifactRoot = path.join(root, presetName);
+		fs.mkdirSync(artifactRoot);
+		const artifact = path.join(artifactRoot, 'session.log');
+		fs.writeFileSync(artifact, 'payload');
+		return { artifact, artifactRoot };
+	};
+
+	const presetConfigFor = (
+		root: string,
+		presets: Record<string, string[]>,
+		fields: { usePresets?: string[] } = {},
+	): string => {
+		const configured: Record<string, TestTarget[]> = {};
+		for (const [presetName, artifactRoots] of Object.entries(presets)) {
+			configured[presetName] = artifactRoots.map((artifactRoot) =>
+				targetFor(artifactRoot, { tool: presetName }),
+			);
+		}
+		return writePresetsConfig(root, configured, fields);
+	};
+
+	test('runs only the selected preset without a custom configuration file', async () => {
+		const result = await runCli(['--agent', 'claude-code'], repositoryRoot);
+		expect(result.exitCode).toBe(0);
+		expect(result.stdout).toContain('Agent selection: claude-code');
+		expect(result.stdout).toContain('Analyzing claude-code');
+		expect(result.stdout).not.toContain('Analyzing cursor');
+		expect(result.stdout).toContain('DRY RUN MODE ENABLED');
+	});
+
+	test('runs only the selected preset among several', async () => {
+		const root = createTemporaryRoot();
+		const alpha = createPresetFixture(root, 'alpha');
+		const beta = createPresetFixture(root, 'beta');
+		const configPath = presetConfigFor(root, {
+			alpha: [alpha.artifactRoot],
+			beta: [beta.artifactRoot],
+		});
+
+		const result = await runCli(['--config', configPath, '--apply', '--agent', 'alpha']);
+		expect(result.exitCode).toBe(0);
+		expect(fs.existsSync(alpha.artifact)).toBeFalse();
+		expect(fs.existsSync(beta.artifact)).toBeTrue();
+	});
+
+	test('processes every repeated selection', async () => {
+		const root = createTemporaryRoot();
+		const alpha = createPresetFixture(root, 'alpha');
+		const beta = createPresetFixture(root, 'beta');
+		const configPath = presetConfigFor(root, {
+			alpha: [alpha.artifactRoot],
+			beta: [beta.artifactRoot],
+		});
+
+		const result = await runCli([
+			'--config',
+			configPath,
+			'--apply',
+			'--agent',
+			'alpha',
+			'--agent',
+			'beta',
+		]);
+		expect(result.exitCode).toBe(0);
+		expect(result.stdout).toContain('Agent selection: alpha, beta');
+		expect(fs.existsSync(alpha.artifact)).toBeFalse();
+		expect(fs.existsSync(beta.artifact)).toBeFalse();
+	});
+
+	test('selecting an empty preset reports no targets rather than failing', async () => {
+		const root = createTemporaryRoot();
+		const configPath = writePresetsConfig(root, { 'checked-home': [] });
+
+		const result = await runCli(['--config', configPath, '--agent', 'checked-home']);
+		expect(result.exitCode).toBe(0);
+		expect(result.stdout).toContain('Agent selection: checked-home');
+		expect(result.stdout).toContain('No cleanup targets configured.');
+	});
+
+	test('intersects the selection with config-level usePresets', async () => {
+		const root = createTemporaryRoot();
+		const alpha = createPresetFixture(root, 'alpha');
+		const beta = createPresetFixture(root, 'beta');
+		const configPath = presetConfigFor(
+			root,
+			{ alpha: [alpha.artifactRoot], beta: [beta.artifactRoot] },
+			{ usePresets: ['alpha', 'beta'] },
+		);
+
+		const result = await runCli(['--config', configPath, '--apply', '--agent', 'beta']);
+		expect(result.exitCode).toBe(0);
+		// beta is both selected and active; alpha is active but not selected.
+		expect(fs.existsSync(alpha.artifact)).toBeTrue();
+		expect(fs.existsSync(beta.artifact)).toBeFalse();
+	});
+
+	test('an empty intersection processes no targets and reports that state', async () => {
+		const root = createTemporaryRoot();
+		const alpha = createPresetFixture(root, 'alpha');
+		const beta = createPresetFixture(root, 'beta');
+		const configPath = presetConfigFor(
+			root,
+			{ alpha: [alpha.artifactRoot], beta: [beta.artifactRoot] },
+			{ usePresets: ['alpha'] },
+		);
+
+		const result = await runCli(['--config', configPath, '--agent', 'beta']);
+		expect(result.exitCode).toBe(0);
+		expect(result.stdout).toContain(
+			'The --agent selection matches no active presets; no targets to process.',
+		);
+		expect(result.stdout).not.toContain('Would delete');
+		expect(fs.existsSync(alpha.artifact)).toBeTrue();
+		expect(fs.existsSync(beta.artifact)).toBeTrue();
+	});
+
+	test('a preset selection skips explicit targets and legacy targetPaths', async () => {
+		const root = createTemporaryRoot();
+		const alpha = createPresetFixture(root, 'alpha');
+		const explicitRoot = path.join(root, 'explicit');
+		fs.mkdirSync(explicitRoot);
+		const explicitArtifact = path.join(explicitRoot, 'session.log');
+		fs.writeFileSync(explicitArtifact, 'payload');
+		const configPath = path.join(root, 'mixed.json');
+		fs.writeFileSync(
+			configPath,
+			JSON.stringify({
+				presets: { alpha: [targetFor(alpha.artifactRoot, { tool: 'alpha' })] },
+				targets: [targetFor(explicitRoot, { name: 'Explicit target' })],
+			}),
+		);
+
+		const result = await runCli(['--config', configPath, '--apply', '--agent', 'alpha']);
+		expect(result.exitCode).toBe(0);
+		expect(fs.existsSync(alpha.artifact)).toBeFalse();
+		expect(fs.existsSync(explicitArtifact)).toBeTrue();
 	});
 });
 
@@ -378,6 +523,7 @@ describe('CLI and packaged defaults', () => {
 			const result = await runCli([flag, '--config', configPath, '--apply']);
 			expect(result.exitCode).toBe(0);
 			expect(result.stdout).toContain('--config <path>');
+			expect(result.stdout).toContain('--agent <name>');
 			expect(result.stdout).toContain('--dry-run');
 			expect(result.stdout).toContain('--apply');
 			expect(result.stdout).toContain('--older-than <age>');
@@ -429,6 +575,16 @@ describe('CLI and packaged defaults', () => {
 			args: (configPath) => ['--config', configPath, '--older-than', '0d'],
 			errorMarker: '--older-than requires a positive age in days',
 			name: 'rejects a non-positive --older-than value with exit code 2',
+		},
+		{
+			args: (configPath) => ['--config', configPath, '--agent'],
+			errorMarker: '--agent requires a preset name argument',
+			name: 'rejects a terminal --agent without a name with exit code 2',
+		},
+		{
+			args: (configPath) => ['--config', configPath, '--agent', 'nope'],
+			errorMarker: '--agent references unknown preset: nope',
+			name: 'rejects an unknown --agent selection with exit code 2',
 		},
 	];
 
