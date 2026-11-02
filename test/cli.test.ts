@@ -631,6 +631,7 @@ describe('CLI and packaged defaults', () => {
 			'grok',
 			'kilo',
 			'kiro',
+			'lm-studio',
 			'opencode',
 			't3code',
 			'windsurf',

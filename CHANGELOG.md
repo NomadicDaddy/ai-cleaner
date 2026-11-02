@@ -7,6 +7,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- LM Studio preset (feature `lm-studio-preset`, v1.3, from the preset-coverage research verdict
+  where LM Studio ranked priority 1 "add now"). The preset targets only surfaces verified on the
+  live installation: `~/.lmstudio/server-logs` monthly directories (`kind: directory`,
+  `keepCount: 3`), `~/AppData/Roaming/LM Studio/logs` and `Crashpad/reports` (`kind: any`,
+  `keepDays: 14`), and the rebuildable Electron shell caches `Cache`, `Code Cache`,
+  `DawnGraphiteCache`, `DawnWebGPUCache`, and `GPUCache` as a full cache reset
+  (`allowEmpty: true`, `keepCount: 0`, the Devin shell-cache pattern). Every target is
+  aggressive, matching the global-directory doctrine. `models`, `conversations`, `credentials`,
+  `extensions`, `projects`, `scratchpads`, `skills`, `user-files`, `working-directories`,
+  `mcp.json`, `settings.json`, and the Electron state directories are preserved;
+  `README.md` documents the coverage row, the preserve list, and the close-LM-Studio note, and
+  the bundled-config test enumerates `lm-studio`.
+
 - Agent Browser coverage record (feature `agent-browser-preset`, v1.3). A live `~/.agent-browser`
   installation was inspected per the proven-surface doctrine and no disposable leaf was proven:
   the home root holds ~11,000 session config, target, and engine files that are user work

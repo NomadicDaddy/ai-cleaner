@@ -179,6 +179,48 @@
 			}
 		],
 		"kiro": [],
+		"lm-studio": [
+			{
+				"kind": "directory",
+				"name": "LM Studio server logs",
+				"paths": ["~/.lmstudio/server-logs"],
+				"retention": {
+					"keepCount": 3
+				},
+				"risk": "aggressive",
+				"tool": "lm-studio"
+			},
+			{
+				"kind": "any",
+				"name": "LM Studio application logs and crash reports",
+				"paths": [
+					"~/AppData/Roaming/LM Studio/logs",
+					"~/AppData/Roaming/LM Studio/Crashpad/reports"
+				],
+				"retention": {
+					"keepDays": 14
+				},
+				"risk": "aggressive",
+				"tool": "lm-studio"
+			},
+			{
+				"kind": "any",
+				"name": "LM Studio Electron shell caches",
+				"paths": [
+					"~/AppData/Roaming/LM Studio/Cache",
+					"~/AppData/Roaming/LM Studio/Code Cache",
+					"~/AppData/Roaming/LM Studio/DawnGraphiteCache",
+					"~/AppData/Roaming/LM Studio/DawnWebGPUCache",
+					"~/AppData/Roaming/LM Studio/GPUCache"
+				],
+				"retention": {
+					"allowEmpty": true,
+					"keepCount": 0
+				},
+				"risk": "aggressive",
+				"tool": "lm-studio"
+			}
+		],
 		"opencode": [
 			{
 				"kind": "any",

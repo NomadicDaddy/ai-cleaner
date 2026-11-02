@@ -147,6 +147,7 @@ distributed skills and agents; those linked resources are protected and are neve
 | Cline             | Project task history and session directories                                                               |
 | Devin             | Editor and CLI logs, crash reports, superseded build caches, shell caches (both channels)                  |
 | T3 Code           | Rotated `~/.t3` logs, provider caches, desktop shell caches, stale pending updates                         |
+| LM Studio         | Monthly server logs, application logs, crash reports, Electron shell caches                                |
 
 Agent Browser (`~/.agent-browser`) was inspected on a live installation and records an empty
 preset: the home root stores thousands of session config, target, and engine files that are user
@@ -171,6 +172,16 @@ rotation count, not age, is what bounds them.
 Close the Devin and T3 Code desktop apps before applying their shell-cache targets. Chromium holds
 open handles on `Cache` and `GPUCache` while either runs, and a locked file becomes a deletion
 failure and a nonzero exit.
+
+LM Studio targets only its documented disposable surfaces: `~/.lmstudio/server-logs` (monthly
+directories, newest kept by count), plus `logs`, `Crashpad/reports`, and the rebuildable Electron
+shell caches (`Cache`, `Code Cache`, `DawnGraphiteCache`, `DawnWebGPUCache`, `GPUCache`) under
+`~/AppData/Roaming/LM Studio`. Everything else is preserved — `models`, `conversations`,
+`credentials`, `extensions`, `projects`, `scratchpads`, `skills`, `user-files`,
+`working-directories`, `mcp.json`, `settings.json`, and the Electron state directories (`Local
+Storage`, `Network`, `Session Storage`, `Preferences`, `Local State`, `blob_storage`, `DIPS`,
+`Shared Dictionary`, `SharedStorage`). Close LM Studio before applying its targets; every target
+is aggressive, so applying also needs `--aggressive --confirm-aggressive`.
 
 ## Safety
 
