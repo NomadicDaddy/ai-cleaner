@@ -1,6 +1,6 @@
 - \[x\] --older-than 30d
 - \[x\] target specific agent(s)
-- \[ ] support cleaning: {HOME}\\.agent-browser
+- \[x\] support cleaning: {HOME}\\.agent-browser
 
 ## Buzz preset
 

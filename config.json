@@ -4,6 +4,7 @@
 		"keepCount": 5
 	},
 	"presets": {
+		"agent-browser": [],
 		"agents": [],
 		"antigravity": [],
 		"claude-code": [

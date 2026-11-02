@@ -134,6 +134,7 @@ distributed skills and agents; those linked resources are protected and are neve
 | Kilo              | Runtime logs and cache; `.config/kilo` skills and agents are preserved                                     |
 | OpenCode          | Runtime logs and cache; `.config/opencode` skills and agents are preserved                                 |
 | Windsurf          | No active target; no safe disposable leaf was proven (`.codeium/windsurf` and `.windsurf` homes preserved) |
+| Agent Browser     | No active target; no safe disposable leaf was proven (`.agent-browser` home preserved)                     |
 | Generic `.agents` | Distribution-only home; no cleanup target                                                                  |
 | Codex             | Cache, logs, and temporary directories; sessions and memories are preserved                                |
 | Gemini            | Distribution-only on the inspected machine; no cleanup target                                              |
@@ -146,6 +147,13 @@ distributed skills and agents; those linked resources are protected and are neve
 | Cline             | Project task history and session directories                                                               |
 | Devin             | Editor and CLI logs, crash reports, superseded build caches, shell caches (both channels)                  |
 | T3 Code           | Rotated `~/.t3` logs, provider caches, desktop shell caches, stale pending updates                         |
+
+Agent Browser (`~/.agent-browser`) was inspected on a live installation and records an empty
+preset: the home root stores thousands of session config, target, and engine files that are user
+work product; `browsers/` holds the single live engine build; `sessions/`, `namespaces/`, and
+`auth/` hold session state and credentials; `tmp/` holds HAR captures and screenshots kept as
+evidence; and the only Chromium crash/cache leaves sit inside live, user-named profiles under
+`profiles/`. No leaf was proven disposable, so none is targeted.
 
 Devin is a VS Code fork, so its userData tree mixes editor caches with editor _state_. Only the caches
 and logs are targets. `Backups` (hot-exit buffers for unsaved files), `User/History` (local file

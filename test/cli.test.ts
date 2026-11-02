@@ -618,6 +618,7 @@ describe('CLI and packaged defaults', () => {
 			presets: Record<string, TestTarget[]>;
 		};
 		const requiredPresets = [
+			'agent-browser',
 			'agents',
 			'antigravity',
 			'claude-code',

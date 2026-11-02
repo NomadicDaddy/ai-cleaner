@@ -7,6 +7,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Agent Browser coverage record (feature `agent-browser-preset`, v1.3). A live `~/.agent-browser`
+  installation was inspected per the proven-surface doctrine and no disposable leaf was proven:
+  the home root holds ~11,000 session config, target, and engine files that are user work
+  product; `browsers/` holds the single live engine build; `sessions/`, `namespaces/`, and
+  `auth/` hold session state and credentials; `tmp/` holds HAR captures and screenshots kept as
+  evidence; and the only Chromium crash/cache leaves sit inside live, user-named profiles under
+  `profiles/`. `config.json` therefore ships an empty `agent-browser` preset recording the
+  checked home, `README.md` documents the checked-but-empty state in the coverage table, and
+  the bundled-config test enumerates the preset alongside the other canonical homes.
+
 - `--agent <name>` preset selection (feature `agent-selection-cli`, v1.3). The repeatable option
   restricts a run to the named preset's targets without requiring a custom configuration file,
   recording selections on `CliOptions` as `agentSelections`. `resolveAgentSelection` in
